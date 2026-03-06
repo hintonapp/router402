@@ -37,8 +37,7 @@ const routeLogger = logger.context("x402:Routes");
 async function getDynamicPrice(context: HTTPRequestContext): Promise<string> {
   const paymentHeader = context.paymentHeader;
   if (!paymentHeader) {
-    // No payment header means JWT auth was used - return 0 as price
-    // The onProtectedRequest hook already granted access
+    routeLogger.info("getDynamicPrice: no payment header → price $0");
     return "0";
   }
 
@@ -47,16 +46,18 @@ async function getDynamicPrice(context: HTTPRequestContext): Promise<string> {
   const wallet = extractWalletFromPayload(innerPayload);
 
   if (!wallet) {
-    // No wallet in payload - return 0 to allow hook to handle
+    routeLogger.info("getDynamicPrice: no wallet in payload → price $0");
     return "0";
   }
 
   const debt = await getUserDebt(wallet);
-  routeLogger.debug("Dynamic price calculated", {
+  const priceString = `${debt.toFixed(8)}`;
+  routeLogger.info("getDynamicPrice", {
     wallet: wallet.slice(0, 10),
-    debt,
+    debtDollars: debt,
+    priceString,
   });
-  return `${debt.toFixed(8)}`;
+  return priceString;
 }
 
 export function createPaidRouter(config: Config): Router {
@@ -134,8 +135,33 @@ export function createPaidRouter(config: Config): Router {
   paidRouter.use((req: Request, res: Response, next: NextFunction) => {
     // Run the rest of the request in an async context for wallet tracking
     requestContext.run({ walletAddress: undefined }, () => {
+      // Intercept response to log x402 middleware decisions
+      const originalWriteHead = res.writeHead.bind(res);
+      // biome-ignore lint/suspicious/noExplicitAny: Express writeHead overloads
+      res.writeHead = (statusCode: number, ...args: any[]) => {
+        if (statusCode === 402) {
+          const paymentRequired = res.getHeader("PAYMENT-REQUIRED");
+          routeLogger.info("x402 middleware → 402 Payment Required", {
+            path: req.path,
+            method: req.method,
+            hasPaymentRequiredHeader: !!paymentRequired,
+          });
+        } else if (statusCode === 403) {
+          routeLogger.info("x402 middleware → 403 Forbidden", {
+            path: req.path,
+          });
+        }
+        return originalWriteHead(statusCode, ...args);
+      };
+
       // biome-ignore lint/suspicious/noExplicitAny: Express types version mismatch between project and x402 submodule
-      x402Middleware(req as any, res as any, next);
+      x402Middleware(req as any, res as any, (...nextArgs: unknown[]) => {
+        routeLogger.info("x402 middleware → next() (access granted)", {
+          path: req.path,
+          method: req.method,
+        });
+        next(...(nextArgs as []));
+      });
     });
   });
 

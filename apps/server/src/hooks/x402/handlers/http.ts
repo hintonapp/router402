@@ -76,13 +76,21 @@ export async function onProtectedRequest(
   const path = context.path;
   const method = context.method;
 
-  hookLogger.debug("Processing protected request", { method, path });
+  const hasPaymentHeader = !!context.paymentHeader;
+  const authHeader = context.adapter.getHeader("authorization");
+  const hasJwt = !!authHeader?.startsWith("Bearer ");
+
+  hookLogger.info("Hook started", {
+    method,
+    path,
+    hasPaymentHeader,
+    hasJwt,
+  });
 
   // ============================================
   // JWT Bearer Token Flow (Priority 1)
   // Validates: Requirements 2.1, 2.2, 2.5, 2.6, 6.1
   // ============================================
-  const authHeader = context.adapter.getHeader("authorization");
 
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7); // Remove "Bearer " prefix
@@ -190,7 +198,10 @@ export async function onProtectedRequest(
   // ============================================
   const paymentHeader = context.paymentHeader;
   if (!paymentHeader) {
-    hookLogger.debug("No payment header, proceeding to payment flow");
+    hookLogger.info("No payment header → continue to x402 payment flow", {
+      path,
+      result: "undefined (continue)",
+    });
     return undefined;
   }
 
@@ -198,17 +209,27 @@ export async function onProtectedRequest(
   try {
     payload = decodePaymentSignatureHeader(paymentHeader);
   } catch (error) {
-    hookLogger.debug("Failed to decode payment header", { error });
+    hookLogger.warn("Failed to decode payment header", { error, path });
     return undefined;
   }
 
   const innerPayload = payload.payload as Record<string, unknown>;
+  const isSolana = typeof innerPayload.transaction === "string";
   const walletAddress = extractWalletFromPayload(innerPayload);
 
+  hookLogger.info("Payment header decoded", {
+    wallet: walletAddress?.slice(0, 10) ?? "none",
+    isSolana,
+    network: payload.accepted?.network,
+    scheme: payload.accepted?.scheme,
+    acceptedAmount: payload.accepted?.amount,
+  });
+
   if (!walletAddress) {
-    hookLogger.debug(
-      "No wallet address in payload, proceeding to payment flow"
-    );
+    hookLogger.info("No wallet in payload → continue to x402 payment flow", {
+      path,
+      result: "undefined (continue)",
+    });
     return undefined;
   }
 
@@ -219,9 +240,16 @@ export async function onProtectedRequest(
     payload.accepted
   );
 
+  hookLogger.info("Signature verification", {
+    wallet: walletAddress.slice(0, 10),
+    isSolana,
+    isValid: isValidSignature,
+  });
+
   if (!isValidSignature) {
-    hookLogger.warn("Invalid signature - address mismatch", {
-      claimedWallet: walletAddress.slice(0, 10),
+    hookLogger.warn("Invalid signature → continue to x402 payment flow", {
+      wallet: walletAddress.slice(0, 10),
+      result: "undefined (continue)",
     });
     return undefined;
   }
@@ -230,24 +258,21 @@ export async function onProtectedRequest(
   const belowThreshold = await isDebtBelowThreshold(walletAddress);
 
   if (belowThreshold) {
-    // Store wallet in async context for usage tracking
     setWalletAddress(walletAddress);
-
-    hookLogger.info("Access granted - debt below threshold", {
+    hookLogger.info("Hook decision: GRANT ACCESS (debt below threshold)", {
       wallet: walletAddress.slice(0, 10),
       path,
+      result: "grantAccess: true",
     });
     return { grantAccess: true };
   }
 
   // Debt exceeds threshold - require payment.
-  // Store wallet in context so onAfterSettle can attribute the payment correctly
-  // (especially for Solana where the facilitator returns a placeholder payer).
   setWalletAddress(walletAddress);
-
-  hookLogger.info("Debt exceeds threshold, requiring payment", {
+  hookLogger.info("Hook decision: REQUIRE PAYMENT (debt exceeds threshold)", {
     wallet: walletAddress.slice(0, 10),
     path,
+    result: "undefined (continue to x402)",
   });
   return undefined;
 }
