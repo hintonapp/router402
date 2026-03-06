@@ -218,6 +218,12 @@ async function handleStreamingResponse(
     }
 
     // Record usage after streaming completes
+    chatLogger.debug("Streaming usage tracking check", {
+      walletAddress,
+      hasUsage: !!finalUsage,
+      model: request.model,
+      isSupportedModel: request.model ? isSupportedModel(request.model) : false,
+    });
     if (
       walletAddress &&
       finalUsage &&
