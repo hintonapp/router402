@@ -35,18 +35,22 @@ const routeLogger = logger.context("x402:Routes");
  * Returns "0" when no payment header (JWT auth case - access already granted by hook)
  */
 async function getDynamicPrice(context: HTTPRequestContext): Promise<string> {
+  // Try payment header first, then fall back to Wallet-Address header
+  let wallet: string | null = null;
+
   const paymentHeader = context.paymentHeader;
-  if (!paymentHeader) {
-    routeLogger.info("getDynamicPrice: no payment header → price $0");
-    return "0";
+  if (paymentHeader) {
+    const payload = decodePaymentSignatureHeader(paymentHeader);
+    const innerPayload = payload.payload as Record<string, unknown>;
+    wallet = extractWalletFromPayload(innerPayload);
   }
 
-  const payload = decodePaymentSignatureHeader(paymentHeader);
-  const innerPayload = payload.payload as Record<string, unknown>;
-  const wallet = extractWalletFromPayload(innerPayload);
+  if (!wallet) {
+    wallet = context.adapter.getHeader("wallet-address") ?? null;
+  }
 
   if (!wallet) {
-    routeLogger.info("getDynamicPrice: no wallet in payload → price $0");
+    routeLogger.info("getDynamicPrice: no wallet available → price $0");
     return "0";
   }
 
