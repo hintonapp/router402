@@ -43,7 +43,10 @@ export async function onAfterSettle(context: {
 }): Promise<void> {
   const facilitatorPayer = context.result.payer;
   const txHash = context.result.transaction;
-  const amount = context.requirements.amount;
+  const rawAmount = context.requirements.amount;
+  // requirements.amount is in token smallest units (micro-USDC, 6 decimals)
+  // Convert to dollars for debt tracking
+  const amount = (Number(rawAmount) / 1e6).toString();
 
   // Use the wallet extracted during request processing (from payment payload).
   // Fall back to the facilitator's payer only if it's a real address.
