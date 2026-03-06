@@ -35,9 +35,21 @@ function getPrisma(): PrismaClient {
 /**
  * Get or create user by wallet address
  */
+/**
+ * Normalize wallet address for storage.
+ * EVM addresses (0x-prefixed) are lowercased.
+ * Solana addresses (Base58) are stored as-is since they are case-sensitive.
+ */
+function normalizeWalletAddress(address: string): string {
+  if (address.startsWith("0x")) {
+    return address.toLowerCase();
+  }
+  return address;
+}
+
 export async function getOrCreateUser(walletAddress: string) {
   const db = getPrisma();
-  const normalizedAddress = walletAddress.toLowerCase();
+  const normalizedAddress = normalizeWalletAddress(walletAddress);
 
   const user = await db.user.upsert({
     where: { walletAddress: normalizedAddress },

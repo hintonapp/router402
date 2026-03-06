@@ -2,6 +2,7 @@
  * Payment Signature Verification Utilities
  *
  * Verifies that payment signatures are signed by the claimed wallet address.
+ * Supports both EVM (EIP-3009, Permit2) and Solana payment formats.
  */
 
 import { logger } from "@router402/utils";
@@ -10,9 +11,94 @@ import { verifyTypedData } from "viem";
 
 const sigLogger = logger.context("signature");
 
+const BASE58_ALPHABET =
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function base58Encode(bytes: Uint8Array): string {
+  let result = "";
+  let num = 0n;
+  for (const byte of bytes) {
+    num = num * 256n + BigInt(byte);
+  }
+  while (num > 0n) {
+    const remainder = num % 58n;
+    num = num / 58n;
+    result = BASE58_ALPHABET[Number(remainder)] + result;
+  }
+  for (const byte of bytes) {
+    if (byte !== 0) break;
+    result = `1${result}`;
+  }
+  return result || "1";
+}
+
 /**
- * Extracts wallet address from payment payload
- * Supports both EIP-3009 and Permit2 payload formats
+ * Read a compact-u16 encoded value from a buffer.
+ * Returns [value, bytesConsumed].
+ */
+function readCompactU16(buf: Uint8Array, offset: number): [number, number] {
+  let value = 0;
+  let bytesUsed = 0;
+  for (let shift = 0; shift < 3; shift++) {
+    const byte = buf[offset + bytesUsed];
+    bytesUsed++;
+    value |= (byte & 0x7f) << (shift * 7);
+    if ((byte & 0x80) === 0) break;
+  }
+  return [value, bytesUsed];
+}
+
+/**
+ * Extract the user's wallet (payer) from a serialized Solana transaction.
+ *
+ * In x402 Solana payments the transaction has at least 2 required signers:
+ *   [0] = fee payer (facilitator)
+ *   [1] = user (token owner / actual payer)
+ *
+ * If there is only 1 required signer, the fee payer IS the user.
+ */
+function extractSolanaPayerFromTx(txBase64: string): string | null {
+  try {
+    const buf = new Uint8Array(Buffer.from(txBase64, "base64"));
+    let pos = 0;
+
+    // Signatures: compact-u16 count + 64 bytes each
+    const [sigCount, sigCountBytes] = readCompactU16(buf, pos);
+    pos += sigCountBytes + sigCount * 64;
+
+    // Detect versioned vs legacy: version prefix >= 0x80 means versioned
+    const firstByte = buf[pos];
+    if (firstByte >= 0x80) {
+      pos++; // skip version byte
+    }
+
+    // Message header: 3 bytes
+    const numRequiredSignatures = buf[pos];
+    pos += 3; // skip header (numRequired, numReadonlySigned, numReadonlyUnsigned)
+
+    // Static account keys: compact-u16 count + 32 bytes each
+    const [keyCount, keyCountBytes] = readCompactU16(buf, pos);
+    pos += keyCountBytes;
+
+    if (keyCount === 0) return null;
+
+    // The user is the second required signer (index 1) if there are >= 2 signers
+    const targetIndex = numRequiredSignatures >= 2 && keyCount >= 2 ? 1 : 0;
+    const keyStart = pos + targetIndex * 32;
+    const keyBytes = buf.slice(keyStart, keyStart + 32);
+
+    return base58Encode(keyBytes);
+  } catch (error) {
+    sigLogger.debug("Failed to extract Solana payer from transaction", {
+      error,
+    });
+    return null;
+  }
+}
+
+/**
+ * Extracts wallet address from payment payload.
+ * Supports EVM (EIP-3009, Permit2) and Solana (serialized transaction) formats.
  */
 export function extractWalletFromPayload(
   payload: Record<string, unknown>
@@ -31,6 +117,11 @@ export function extractWalletFromPayload(
     if (permit2.from) {
       return permit2.from.toLowerCase();
     }
+  }
+
+  // Solana format: payload.transaction (base64 serialized transaction)
+  if (typeof payload.transaction === "string") {
+    return extractSolanaPayerFromTx(payload.transaction);
   }
 
   return null;
@@ -185,6 +276,13 @@ export async function verifyPaymentSignature(
   walletAddress: string,
   accepted: PaymentRequirements
 ): Promise<boolean> {
+  // Solana payments: signature is embedded in the serialized transaction.
+  // Verification is handled by the facilitator during settlement.
+  if (typeof payload.transaction === "string") {
+    sigLogger.debug("Solana payment — skipping local signature verification");
+    return true;
+  }
+
   const signature = payload.signature as string | undefined;
 
   if (!signature) {

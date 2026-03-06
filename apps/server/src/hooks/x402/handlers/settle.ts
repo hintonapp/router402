@@ -7,8 +7,14 @@
 
 import { logger } from "@router402/utils";
 import { processPayment } from "../../../services/debt.js";
+import { getWalletAddress } from "../../../utils/request-context.js";
 
 const hookLogger = logger.context("x402:Settle");
+
+/**
+ * Known facilitator placeholder payer values that should not be stored.
+ */
+const PLACEHOLDER_PAYERS = new Set(["solana-payer", "stacks-payer", "unknown"]);
 
 /**
  * Runs before payment settlement
@@ -35,12 +41,22 @@ export async function onAfterSettle(context: {
   result: { payer?: string; transaction?: string };
   requirements: { network: string; amount: string };
 }): Promise<void> {
-  const payer = context.result.payer;
+  const facilitatorPayer = context.result.payer;
   const txHash = context.result.transaction;
   const amount = context.requirements.amount;
 
+  // Use the wallet extracted during request processing (from payment payload).
+  // Fall back to the facilitator's payer only if it's a real address.
+  const contextWallet = getWalletAddress();
+  const payer =
+    contextWallet ??
+    (facilitatorPayer && !PLACEHOLDER_PAYERS.has(facilitatorPayer)
+      ? facilitatorPayer
+      : null);
+
   hookLogger.info("Payment settled", {
     payer: payer ?? "unknown",
+    facilitatorPayer: facilitatorPayer ?? "unknown",
     transaction: txHash ?? "unknown",
     network: context.requirements.network,
     amount,
@@ -55,6 +71,11 @@ export async function onAfterSettle(context: {
         error,
       });
     }
+  } else {
+    hookLogger.warn("No real payer address available, skipping DB update", {
+      facilitatorPayer,
+      network: context.requirements.network,
+    });
   }
 }
 

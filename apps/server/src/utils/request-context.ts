@@ -27,7 +27,10 @@ export function getWalletAddress(): string | undefined {
 export function setWalletAddress(address: string): void {
   const store = requestContext.getStore();
   if (store) {
-    store.walletAddress = address.toLowerCase();
+    // EVM addresses (0x-prefixed) are lowercased; Solana (Base58) kept as-is
+    store.walletAddress = address.startsWith("0x")
+      ? address.toLowerCase()
+      : address;
   }
 }
 

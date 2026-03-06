@@ -240,7 +240,11 @@ export async function onProtectedRequest(
     return { grantAccess: true };
   }
 
-  // Debt exceeds threshold - require payment
+  // Debt exceeds threshold - require payment.
+  // Store wallet in context so onAfterSettle can attribute the payment correctly
+  // (especially for Solana where the facilitator returns a placeholder payer).
+  setWalletAddress(walletAddress);
+
   hookLogger.info("Debt exceeds threshold, requiring payment", {
     wallet: walletAddress.slice(0, 10),
     path,
