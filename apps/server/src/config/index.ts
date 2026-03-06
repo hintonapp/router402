@@ -22,6 +22,7 @@ export function loadConfig(): Config {
       DATABASE_URL: process.env.DATABASE_URL,
       RPC_URL: process.env.RPC_URL,
       PAY_TO: process.env.PAY_TO,
+      PAY_TO_SOLANA: process.env.PAY_TO_SOLANA,
       FACILITATOR_URL: process.env.FACILITATOR_URL,
       JWT_SECRET: process.env.JWT_SECRET,
       PIMLICO_API_KEY: process.env.PIMLICO_API_KEY,

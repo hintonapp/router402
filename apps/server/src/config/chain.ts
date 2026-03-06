@@ -32,3 +32,27 @@ export function getChainConfig(): ChainConfig {
     network: "eip155:84532",
   };
 }
+
+/**
+ * Solana network configuration based on CHAIN_ENV
+ * - mainnet → Solana Mainnet
+ * - testnet → Solana Devnet
+ */
+export interface SolanaNetworkConfig {
+  /** CAIP-2 network identifier (e.g. "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp") */
+  network: string;
+}
+
+export function getSolanaNetworkConfig(): SolanaNetworkConfig {
+  const isMainnet = process.env.CHAIN_ENV === "mainnet";
+
+  if (isMainnet) {
+    return {
+      network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    };
+  }
+
+  return {
+    network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  };
+}

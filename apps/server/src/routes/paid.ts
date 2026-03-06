@@ -16,9 +16,10 @@ import {
   type Response,
   type Router,
 } from "express";
-import { getChainConfig } from "../config/chain.js";
+import { getChainConfig, getSolanaNetworkConfig } from "../config/chain.js";
 import type { Config } from "../config/index.js";
 import { registerX402Hooks, registerX402HTTPHooks } from "../hooks/index.js";
+import { registerExactSolanaScheme } from "../schemes/solana.js";
 import { getUserDebt } from "../services/debt.js";
 import { requestContext } from "../utils/request-context.js";
 import { extractWalletFromPayload } from "../utils/signature.js";
@@ -61,16 +62,19 @@ async function getDynamicPrice(context: HTTPRequestContext): Promise<string> {
 export function createPaidRouter(config: Config): Router {
   const paidRouter: Router = ExpressRouter();
   const payTo = config.PAY_TO;
+  const payToSolana = config.PAY_TO_SOLANA;
   const { network } = getChainConfig();
+  const { network: solanaNetwork } = getSolanaNetworkConfig();
 
   // Create facilitator client
   const facilitatorClient = new HTTPFacilitatorClient({
     url: config.FACILITATOR_URL,
   });
 
-  // Create resource server and register EVM scheme
+  // Create resource server and register EVM + Solana schemes
   const resourceServer = new x402ResourceServer(facilitatorClient);
   registerExactEvmScheme(resourceServer);
+  registerExactSolanaScheme(resourceServer);
 
   // Register lifecycle hooks (verify, settle)
   registerX402Hooks(resourceServer);
@@ -85,6 +89,12 @@ export function createPaidRouter(config: Config): Router {
           network: network as "eip155:8453" | "eip155:84532",
           payTo,
         },
+        {
+          scheme: "exact",
+          price: getDynamicPrice,
+          network: solanaNetwork as `solana:${string}`,
+          payTo: payToSolana,
+        },
       ],
       description: "Access to protected content",
       mimeType: "application/json",
@@ -96,6 +106,12 @@ export function createPaidRouter(config: Config): Router {
           price: getDynamicPrice,
           network: network as "eip155:8453" | "eip155:84532",
           payTo,
+        },
+        {
+          scheme: "exact",
+          price: getDynamicPrice,
+          network: solanaNetwork as `solana:${string}`,
+          payTo: payToSolana,
         },
       ],
       description: "OpenRouter-compatible LLM chat completions",

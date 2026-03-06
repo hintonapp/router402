@@ -75,6 +75,14 @@ export const configSchema = z.object({
   PAY_TO: z.string().default("0x5Ba55eaBD43743Ef6bB6285f393fA3CbA33FbA5e"),
 
   /**
+   * Solana wallet address to receive payments
+   * @default "Hq3d3ErZgvA5aGn6gLWFa9KncoCS4GZ7nJyZEZXkfAQQ"
+   */
+  PAY_TO_SOLANA: z
+    .string()
+    .default("Hq3d3ErZgvA5aGn6gLWFa9KncoCS4GZ7nJyZEZXkfAQQ"),
+
+  /**
    * x402 Facilitator URL
    * URL for the x402 facilitator service
    * @default "https://x402.org/facilitator"
