@@ -212,6 +212,14 @@ export async function processPayment(
   const user = await getOrCreateUser(walletAddress);
   const paymentAmount = new Decimal(amount.replace("$", ""));
 
+  // Skip zero-amount payments — nothing to settle
+  if (paymentAmount.isZero()) {
+    debtLogger.info("Skipping zero-amount payment", {
+      wallet: walletAddress.slice(0, 10),
+    });
+    return;
+  }
+
   // Create payment and update records in a transaction
   await db.$transaction(async (tx) => {
     // Create the payment record
@@ -225,7 +233,7 @@ export async function processPayment(
       },
     });
 
-    // Get all unpaid usage records for this user (snapshot their IDs)
+    // Get all unpaid usage records for this user, oldest first (FIFO)
     const unpaidRecords = await tx.usageRecord.findMany({
       where: {
         userId: user.id,
@@ -234,21 +242,24 @@ export async function processPayment(
       orderBy: { createdAt: "asc" },
     });
 
-    // Use explicit IDs to avoid marking records created by concurrent requests
-    // that were not counted in totalUnpaid (race condition fix)
-    const unpaidIds = unpaidRecords.map((r) => r.id);
+    // Mark records as paid in FIFO order, only up to the payment amount.
+    // This prevents marking records that the payment doesn't actually cover
+    // (e.g. records created by a concurrent request after getDynamicPrice).
+    let covered = new Decimal(0);
+    const coveredIds: string[] = [];
+    for (const record of unpaidRecords) {
+      const cost = new Decimal(record.totalCost);
+      if (covered.plus(cost).greaterThan(paymentAmount)) {
+        break;
+      }
+      covered = covered.plus(cost);
+      coveredIds.push(record.id);
+    }
 
-    // Calculate total unpaid amount
-    const totalUnpaid = unpaidRecords.reduce(
-      (sum, record) => sum.plus(new Decimal(record.totalCost)),
-      new Decimal(0)
-    );
-
-    // Mark ONLY the records we counted as paid (by ID, not by isPaid flag)
-    if (unpaidIds.length > 0) {
+    if (coveredIds.length > 0) {
       await tx.usageRecord.updateMany({
         where: {
-          id: { in: unpaidIds },
+          id: { in: coveredIds },
         },
         data: {
           isPaid: true,
@@ -258,7 +269,7 @@ export async function processPayment(
     }
 
     // Recalculate currentDebt from remaining unpaid records to self-heal any
-    // existing drift (phantom debt) instead of using decrement
+    // existing drift (phantom debt)
     const remainingUnpaid = await tx.usageRecord.findMany({
       where: {
         userId: user.id,
@@ -283,8 +294,8 @@ export async function processPayment(
       wallet: walletAddress.slice(0, 10),
       paymentId: payment.id,
       amount: paymentAmount.toString(),
-      recordsMarkedPaid: unpaidIds.length,
-      previousUnpaid: totalUnpaid.toString(),
+      recordsMarkedPaid: coveredIds.length,
+      totalRecordsUnpaid: unpaidRecords.length,
       newDebt: newDebt.toString(),
     });
   });
