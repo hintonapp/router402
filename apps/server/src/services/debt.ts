@@ -225,7 +225,7 @@ export async function processPayment(
       },
     });
 
-    // Get all unpaid usage records for this user
+    // Get all unpaid usage records for this user (snapshot their IDs)
     const unpaidRecords = await tx.usageRecord.findMany({
       where: {
         userId: user.id,
@@ -234,18 +234,21 @@ export async function processPayment(
       orderBy: { createdAt: "asc" },
     });
 
+    // Use explicit IDs to avoid marking records created by concurrent requests
+    // that were not counted in totalUnpaid (race condition fix)
+    const unpaidIds = unpaidRecords.map((r) => r.id);
+
     // Calculate total unpaid amount
     const totalUnpaid = unpaidRecords.reduce(
       (sum, record) => sum.plus(new Decimal(record.totalCost)),
       new Decimal(0)
     );
 
-    // Mark all unpaid records as paid and link to this payment
-    if (unpaidRecords.length > 0) {
+    // Mark ONLY the records we counted as paid (by ID, not by isPaid flag)
+    if (unpaidIds.length > 0) {
       await tx.usageRecord.updateMany({
         where: {
-          userId: user.id,
-          isPaid: false,
+          id: { in: unpaidIds },
         },
         data: {
           isPaid: true,
@@ -254,13 +257,25 @@ export async function processPayment(
       });
     }
 
-    // Reduce currentDebt by the lesser of payment amount or total unpaid
-    const debtReduction = Decimal.min(paymentAmount, totalUnpaid);
+    // Recalculate currentDebt from remaining unpaid records to self-heal any
+    // existing drift (phantom debt) instead of using decrement
+    const remainingUnpaid = await tx.usageRecord.findMany({
+      where: {
+        userId: user.id,
+        isPaid: false,
+      },
+      select: { totalCost: true },
+    });
+
+    const newDebt = remainingUnpaid.reduce(
+      (sum, record) => sum.plus(new Decimal(record.totalCost)),
+      new Decimal(0)
+    );
 
     await tx.user.update({
       where: { id: user.id },
       data: {
-        currentDebt: { decrement: debtReduction },
+        currentDebt: newDebt,
       },
     });
 
@@ -268,8 +283,9 @@ export async function processPayment(
       wallet: walletAddress.slice(0, 10),
       paymentId: payment.id,
       amount: paymentAmount.toString(),
-      recordsMarkedPaid: unpaidRecords.length,
-      debtReduced: debtReduction.toString(),
+      recordsMarkedPaid: unpaidIds.length,
+      previousUnpaid: totalUnpaid.toString(),
+      newDebt: newDebt.toString(),
     });
   });
 }
