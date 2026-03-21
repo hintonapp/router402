@@ -59,7 +59,7 @@ export interface AuthorizationResult {
 
 export interface JwtPayload {
   userId: string;
-  sessionKeyId: string;
+  sessionKeyId?: string;
   walletAddress: string;
   chainId: number;
 }
@@ -71,6 +71,31 @@ function generateToken(payload: JwtPayload): string {
   return jwt.sign(payload, getJwtSecret(), {
     expiresIn: TOKEN_EXPIRY,
   });
+}
+
+/**
+ * Issue a JWT for a SIWE-authenticated wallet.
+ * Gets or creates the user, returns a signed token.
+ */
+export async function issueTokenForWallet(
+  walletAddress: string,
+  chainId: number
+): Promise<{ token: string; userId: string }> {
+  const user = await getOrCreateUser(walletAddress);
+
+  const token = generateToken({
+    userId: user.id,
+    walletAddress: walletAddress.toLowerCase(),
+    chainId,
+  });
+
+  authLogger.info("SIWE token issued", {
+    wallet: walletAddress.slice(0, 10),
+    userId: user.id,
+    chainId,
+  });
+
+  return { token, userId: user.id };
 }
 
 /**
