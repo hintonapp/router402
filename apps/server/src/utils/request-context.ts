@@ -7,9 +7,17 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
+interface JwtPayloadContext {
+  userId: string;
+  walletAddress: string;
+  chainId: number;
+  sessionKeyId?: string;
+}
+
 interface RequestContext {
   walletAddress?: string;
   smartAccountAddress?: string;
+  jwtPayload?: JwtPayloadContext;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>();
@@ -48,5 +56,22 @@ export function setSmartAccountAddress(address: string): void {
   const store = requestContext.getStore();
   if (store) {
     store.smartAccountAddress = address.toLowerCase();
+  }
+}
+
+/**
+ * Get the JWT payload from request context
+ */
+export function getJwtPayload(): JwtPayloadContext | undefined {
+  return requestContext.getStore()?.jwtPayload;
+}
+
+/**
+ * Set the JWT payload in request context
+ */
+export function setJwtPayload(payload: JwtPayloadContext): void {
+  const store = requestContext.getStore();
+  if (store) {
+    store.jwtPayload = payload;
   }
 }

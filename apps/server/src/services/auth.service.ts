@@ -194,7 +194,18 @@ export function verifyToken(token: string): JwtPayload | null {
     const payload = jwt.verify(token, getJwtSecret()) as JwtPayload;
     return payload;
   } catch (error) {
-    authLogger.debug("Token verification failed", { error });
+    if (error instanceof jwt.TokenExpiredError) {
+      authLogger.warn("Token expired", {
+        expiredAt: error.expiredAt,
+      });
+    } else if (error instanceof jwt.JsonWebTokenError) {
+      authLogger.warn("Token invalid", {
+        reason: error.message,
+        tokenPreview: `${token.slice(0, 20)}...`,
+      });
+    } else {
+      authLogger.warn("Token verification failed", { error });
+    }
     return null;
   }
 }

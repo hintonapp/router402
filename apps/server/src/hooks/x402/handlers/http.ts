@@ -8,10 +8,12 @@
 
 import { logger } from "@router402/utils";
 import type { HTTPRequestContext, RouteConfig } from "@x402/core/server";
-import { verifyToken } from "../../../services/auth.service.js";
 import { autoPayDebt } from "../../../services/auto-payment.js";
 import { getUserDebt, isDebtBelowThreshold } from "../../../services/debt.js";
-import { setWalletAddress } from "../../../utils/request-context.js";
+import {
+  getJwtPayload,
+  setWalletAddress,
+} from "../../../utils/request-context.js";
 
 const hookLogger = logger.context("x402:HTTP");
 
@@ -73,47 +75,33 @@ async function checkDebtAndGrant(
  * HTTP Protected Request Hook
  *
  * Runs on every request to a protected route before payment processing.
- * Requires a valid JWT (SIWE) token in the Authorization header.
+ * JWT authentication is handled by Express middleware (returns 401).
+ * This hook reads the pre-validated JWT payload from request context
+ * and handles debt checking / auto-payment logic.
  *
  * - Valid JWT + debt below threshold → grantAccess
  * - Valid JWT + debt above threshold → auto-pay, then grantAccess or fallback to x402
- * - Invalid/missing JWT → 403
  */
 export async function onProtectedRequest(
   context: HTTPRequestContext,
   _routeConfig: RouteConfig
-): Promise<
-  { grantAccess: true } | { abort: true; reason: string } | undefined
-> {
+): Promise<{ grantAccess: true } | undefined> {
   const path = context.path;
   const method = context.method;
-  const authHeader = context.adapter.getHeader("authorization");
 
   hookLogger.info("Hook started", { method, path });
 
-  // Require JWT Bearer token
-  if (!authHeader?.startsWith("Bearer ")) {
-    hookLogger.warn("No JWT token provided", { path });
-    return {
-      abort: true,
-      reason: "Authentication required. Provide a valid JWT token.",
-    };
-  }
-
-  const token = authHeader.slice(7);
-  const jwtPayload = verifyToken(token);
-
+  // JWT is already validated by Express middleware and stored in request context
+  const jwtPayload = getJwtPayload();
   if (!jwtPayload) {
-    hookLogger.warn("Invalid JWT token", { path });
-    return {
-      abort: true,
-      reason: "Invalid or expired JWT token.",
-    };
+    // Should not happen — Express middleware rejects unauthenticated requests with 401
+    hookLogger.warn("No JWT payload in request context", { path });
+    return undefined;
   }
 
   const { walletAddress, userId, chainId } = jwtPayload;
 
-  hookLogger.debug("JWT validated", {
+  hookLogger.debug("JWT payload from context", {
     wallet: walletAddress.slice(0, 10),
     userId,
     chainId,

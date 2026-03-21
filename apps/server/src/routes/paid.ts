@@ -1,3 +1,4 @@
+import type { ApiResponse } from "@router402/types";
 import { logger } from "@router402/utils";
 // x402 imports from npm packages
 import { decodePaymentSignatureHeader } from "@x402/core/http";
@@ -20,8 +21,9 @@ import { getChainConfig, getSolanaNetworkConfig } from "../config/chain.js";
 import type { Config } from "../config/index.js";
 import { registerX402Hooks, registerX402HTTPHooks } from "../hooks/index.js";
 import { registerExactSolanaScheme } from "../schemes/solana.js";
+import { verifyToken } from "../services/auth.service.js";
 import { getUserDebt } from "../services/debt.js";
-import { requestContext } from "../utils/request-context.js";
+import { requestContext, setJwtPayload } from "../utils/request-context.js";
 import { extractWalletFromPayload } from "../utils/signature.js";
 import { createChatRouter } from "./chat.js";
 
@@ -139,6 +141,35 @@ export function createPaidRouter(config: Config): Router {
   paidRouter.use((req: Request, res: Response, next: NextFunction) => {
     // Run the rest of the request in an async context for wallet tracking
     requestContext.run({ walletAddress: undefined }, () => {
+      // --- JWT authentication (before x402) → 401 on failure ---
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith("Bearer ")) {
+        routeLogger.warn("Missing JWT token", { path: req.path });
+        const errorResponse: ApiResponse = {
+          data: null,
+          error: "Authentication required. Provide a valid JWT token.",
+          meta: { timestamp: new Date().toISOString(), path: req.path },
+        };
+        res.status(401).json(errorResponse);
+        return;
+      }
+
+      const token = authHeader.slice(7);
+      const jwtPayload = verifyToken(token);
+      if (!jwtPayload) {
+        routeLogger.warn("Invalid JWT token", { path: req.path });
+        const errorResponse: ApiResponse = {
+          data: null,
+          error: "Invalid or expired JWT token.",
+          meta: { timestamp: new Date().toISOString(), path: req.path },
+        };
+        res.status(401).json(errorResponse);
+        return;
+      }
+
+      // Store validated JWT payload in request context for x402 hook
+      setJwtPayload(jwtPayload);
+
       // Intercept response to log x402 middleware decisions
       const originalWriteHead = res.writeHead.bind(res);
       // biome-ignore lint/suspicious/noExplicitAny: Express writeHead overloads
