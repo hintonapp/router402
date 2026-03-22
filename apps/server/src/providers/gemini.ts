@@ -554,6 +554,7 @@ export class GeminiProvider implements LLMProvider {
           {
             functionDeclarations: toGeminiFunctionDeclarations(params.tools),
           },
+          { googleSearch: {} } as unknown as FunctionDeclarationsTool,
         ];
 
         // Set tool choice mode
@@ -573,6 +574,8 @@ export class GeminiProvider implements LLMProvider {
             ];
           }
         }
+      } else {
+        tools = [{ googleSearch: {} } as unknown as FunctionDeclarationsTool];
       }
 
       // Create the model with configuration
@@ -686,6 +689,7 @@ export class GeminiProvider implements LLMProvider {
           {
             functionDeclarations: toGeminiFunctionDeclarations(params.tools),
           },
+          { googleSearch: {} } as unknown as FunctionDeclarationsTool,
         ];
 
         // Set tool choice mode
@@ -705,6 +709,8 @@ export class GeminiProvider implements LLMProvider {
             ];
           }
         }
+      } else {
+        tools = [{ googleSearch: {} } as unknown as FunctionDeclarationsTool];
       }
 
       // Create the model with configuration

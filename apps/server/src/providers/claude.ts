@@ -476,12 +476,35 @@ export class ClaudeProvider implements LLMProvider {
 
       // Add tools if present
       if (params.tools && params.tools.length > 0) {
-        requestParams.tools = toClaudeToolsWithSchema(params.tools);
+        requestParams.tools = [
+          ...toClaudeToolsWithSchema(params.tools),
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: 5,
+          } as unknown as ClaudeToolType,
+          {
+            type: "web_fetch_20260209",
+            name: "web_fetch",
+          } as unknown as ClaudeToolType,
+        ];
 
         const toolChoice = toClaudeToolChoice(params.toolChoice);
         if (toolChoice) {
           requestParams.tool_choice = toolChoice;
         }
+      } else {
+        requestParams.tools = [
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: 5,
+          } as unknown as ClaudeToolType,
+          {
+            type: "web_fetch_20260209",
+            name: "web_fetch",
+          } as unknown as ClaudeToolType,
+        ];
       }
 
       const response = await this.client.messages.create(requestParams);
@@ -547,12 +570,35 @@ export class ClaudeProvider implements LLMProvider {
 
       // Add tools if present
       if (params.tools && params.tools.length > 0) {
-        requestParams.tools = toClaudeToolsWithSchema(params.tools);
+        requestParams.tools = [
+          ...toClaudeToolsWithSchema(params.tools),
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: 5,
+          } as unknown as ClaudeToolType,
+          {
+            type: "web_fetch_20260209",
+            name: "web_fetch",
+          } as unknown as ClaudeToolType,
+        ];
 
         const toolChoice = toClaudeToolChoice(params.toolChoice);
         if (toolChoice) {
           requestParams.tool_choice = toolChoice;
         }
+      } else {
+        requestParams.tools = [
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: 5,
+          } as unknown as ClaudeToolType,
+          {
+            type: "web_fetch_20260209",
+            name: "web_fetch",
+          } as unknown as ClaudeToolType,
+        ];
       }
 
       const stream = this.client.messages.stream(requestParams);
