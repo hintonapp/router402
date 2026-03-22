@@ -38,9 +38,20 @@ export async function onBeforeSettle(context: {
  * Creates Payment record, marks UsageRecords as paid, reduces currentDebt
  */
 export async function onAfterSettle(context: {
-  result: { payer?: string; transaction?: string };
+  result: { success?: boolean; payer?: string; transaction?: string };
   requirements: { network: string; amount: string };
 }): Promise<void> {
+  // The x402 library calls afterSettleHooks regardless of settlement success.
+  // The facilitator returns { success: false } (without throwing) on failures
+  // like insufficient funds, so we must check before processing.
+  if (context.result.success === false) {
+    hookLogger.warn("Settlement was not successful, skipping debt update", {
+      network: context.requirements.network,
+      amount: context.requirements.amount,
+    });
+    return;
+  }
+
   const facilitatorPayer = context.result.payer;
   const txHash = context.result.transaction;
   const rawAmount = context.requirements.amount;
