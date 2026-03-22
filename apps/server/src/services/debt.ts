@@ -33,9 +33,6 @@ function getPrisma(): PrismaClient {
 }
 
 /**
- * Get or create user by wallet address
- */
-/**
  * Normalize wallet address for storage.
  * EVM addresses (0x-prefixed) are lowercased.
  * Solana addresses (Base58) are stored as-is since they are case-sensitive.
@@ -47,6 +44,22 @@ function normalizeWalletAddress(address: string): string {
   return address;
 }
 
+/**
+ * Find existing user by wallet address (read-only, no write lock).
+ * Returns null if user doesn't exist.
+ */
+async function findUser(walletAddress: string) {
+  const db = getPrisma();
+  const normalizedAddress = normalizeWalletAddress(walletAddress);
+
+  return db.user.findUnique({
+    where: { walletAddress: normalizedAddress },
+  });
+}
+
+/**
+ * Get or create user by wallet address (write path — uses upsert)
+ */
 export async function getOrCreateUser(walletAddress: string) {
   const db = getPrisma();
   const normalizedAddress = normalizeWalletAddress(walletAddress);
@@ -73,7 +86,10 @@ export async function getOrCreateUser(walletAddress: string) {
  */
 export async function getUserDebt(walletAddress: string): Promise<number> {
   try {
-    const user = await getOrCreateUser(walletAddress);
+    const user = await findUser(walletAddress);
+    if (!user) {
+      return 0;
+    }
     return new Decimal(user.currentDebt).toNumber();
   } catch (error) {
     debtLogger.error("Failed to get user debt", {
@@ -91,7 +107,14 @@ export async function isDebtBelowThreshold(
   walletAddress: string
 ): Promise<boolean> {
   try {
-    const user = await getOrCreateUser(walletAddress);
+    const user = await findUser(walletAddress);
+    if (!user) {
+      // JWT-authenticated user not in DB — don't grant access, fall through to payment flow
+      debtLogger.warn("User not found for threshold check", {
+        wallet: walletAddress.slice(0, 10),
+      });
+      return false;
+    }
 
     const debt = new Decimal(user.currentDebt);
     const threshold = new Decimal(user.paymentThreshold);
