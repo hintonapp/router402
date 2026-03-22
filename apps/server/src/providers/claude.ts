@@ -486,6 +486,11 @@ export class ClaudeProvider implements LLMProvider {
           {
             type: "web_fetch_20260209",
             name: "web_fetch",
+            allowed_callers: ["direct"],
+          } as unknown as ClaudeToolType,
+          {
+            type: "code_execution_20250825",
+            name: "code_execution",
           } as unknown as ClaudeToolType,
         ];
 
@@ -503,6 +508,11 @@ export class ClaudeProvider implements LLMProvider {
           {
             type: "web_fetch_20260209",
             name: "web_fetch",
+            allowed_callers: ["direct"],
+          } as unknown as ClaudeToolType,
+          {
+            type: "code_execution_20250825",
+            name: "code_execution",
           } as unknown as ClaudeToolType,
         ];
       }
@@ -580,6 +590,11 @@ export class ClaudeProvider implements LLMProvider {
           {
             type: "web_fetch_20260209",
             name: "web_fetch",
+            allowed_callers: ["direct"],
+          } as unknown as ClaudeToolType,
+          {
+            type: "code_execution_20250825",
+            name: "code_execution",
           } as unknown as ClaudeToolType,
         ];
 
@@ -597,6 +612,11 @@ export class ClaudeProvider implements LLMProvider {
           {
             type: "web_fetch_20260209",
             name: "web_fetch",
+            allowed_callers: ["direct"],
+          } as unknown as ClaudeToolType,
+          {
+            type: "code_execution_20250825",
+            name: "code_execution",
           } as unknown as ClaudeToolType,
         ];
       }
