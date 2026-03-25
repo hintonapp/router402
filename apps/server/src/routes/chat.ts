@@ -88,6 +88,13 @@ export function createChatRouter(): Router {
 
         const request = parseResult.data;
 
+        chatLogger.info("Incoming completions request", {
+          model: request.model,
+          stream: request.stream,
+          messageCount: request.messages?.length,
+          body: req.body,
+        });
+
         // Get wallet from AsyncLocalStorage (set by x402 hook)
         const walletAddress = getWalletAddress();
         // Use smart account address for MCP prompt (fallback to EOA)
