@@ -203,15 +203,18 @@ function convertContentToGemini(
       const url = part.image_url.url;
       // Check if it's a base64 data URL
       if (url.startsWith("data:")) {
-        const match = url.match(/^data:([^;]+);base64,(.+)$/);
+        const match = url.match(/^data:([^;]+);base64,(.+)$/s);
         if (match) {
           return {
             inlineData: {
               mimeType: match[1],
-              data: match[2],
+              data: match[2].replace(/\s/g, ""),
             },
           };
         }
+        // Malformed data URI — fall through to empty text rather than
+        // sending a data: URI as a fileUri which Gemini cannot fetch
+        return { text: "" };
       }
       // URL-based image - Gemini supports file data from URLs
       return {

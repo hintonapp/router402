@@ -156,19 +156,22 @@ function convertContentToClaude(
       const url = part.image_url.url;
       // Check if it's a base64 data URL
       if (url.startsWith("data:")) {
-        const match = url.match(/^data:([^;]+);base64,(.+)$/);
+        const match = url.match(/^data:([^;]+);base64,(.+)$/s);
         if (match) {
           return {
             type: "image",
             source: {
               type: "base64",
               media_type: validateImageMediaType(match[1]),
-              data: match[2],
+              data: match[2].replace(/\s/g, ""),
             },
           } as ImageBlockParam;
         }
+        // Malformed data URI — fall through to empty text rather than
+        // sending a data: URI as an HTTP URL which providers cannot fetch
+        return { type: "text", text: "" } as TextBlockParam;
       }
-      // URL-based image
+      // URL-based image (HTTP/HTTPS)
       return {
         type: "image",
         source: {
