@@ -19,7 +19,7 @@ This endpoint is protected -- you must authenticate with a JWT token or provide 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `messages` | `Message[]` | Yes | -- | Array of conversation messages (min 1) |
-| `model` | `string` | No | -- | Model identifier (e.g., `anthropic/claude-sonnet-4.5`) |
+| `model` | `string` | No | -- | Model identifier (e.g., `anthropic/claude-sonnet-4.6`) |
 | `stream` | `boolean` | No | `false` | Enable Server-Sent Events streaming |
 | `temperature` | `number` | No | -- | Sampling temperature (0-2) |
 | `max_tokens` | `number` | No | -- | Maximum tokens to generate |
@@ -95,7 +95,7 @@ curl -X POST "https://api.router402.xyz/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <jwt-token>" \
   -d '{
-    "model": "anthropic/claude-sonnet-4.5",
+    "model": "anthropic/claude-sonnet-4.6",
     "messages": [
       { "role": "system", "content": "You are a helpful assistant." },
       { "role": "user", "content": "What is ERC-4337?" }
@@ -112,7 +112,7 @@ curl -X POST "https://api.router402.xyz/v1/chat/completions" \
   "id": "gen-abc123",
   "object": "chat.completion",
   "created": 1738234200,
-  "model": "anthropic/claude-sonnet-4.5",
+  "model": "anthropic/claude-sonnet-4.6",
   "choices": [
     {
       "index": 0,
@@ -145,7 +145,7 @@ curl -X POST "https://api.router402.xyz/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <jwt-token>" \
   -d '{
-    "model": "anthropic/claude-sonnet-4.5",
+    "model": "anthropic/claude-sonnet-4.6",
     "messages": [
       { "role": "user", "content": "Hello!" }
     ],
@@ -166,13 +166,13 @@ Connection: keep-alive
 Each chunk is sent as `data: {json}\n\n`:
 
 ```
-data: {"id":"gen-abc123","object":"chat.completion.chunk","created":1738234200,"model":"anthropic/claude-sonnet-4.5","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+data: {"id":"gen-abc123","object":"chat.completion.chunk","created":1738234200,"model":"anthropic/claude-sonnet-4.6","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
 
-data: {"id":"gen-abc123","object":"chat.completion.chunk","created":1738234200,"model":"anthropic/claude-sonnet-4.5","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
+data: {"id":"gen-abc123","object":"chat.completion.chunk","created":1738234200,"model":"anthropic/claude-sonnet-4.6","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
 
-data: {"id":"gen-abc123","object":"chat.completion.chunk","created":1738234200,"model":"anthropic/claude-sonnet-4.5","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}
+data: {"id":"gen-abc123","object":"chat.completion.chunk","created":1738234200,"model":"anthropic/claude-sonnet-4.6","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}
 
-data: {"id":"gen-abc123","object":"chat.completion.chunk","created":1738234200,"model":"anthropic/claude-sonnet-4.5","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12}}
+data: {"id":"gen-abc123","object":"chat.completion.chunk","created":1738234200,"model":"anthropic/claude-sonnet-4.6","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12}}
 
 data: [DONE]
 ```

@@ -7,11 +7,10 @@ import { APP_CONFIG } from "@/config";
 /** Human-readable display names for supported models */
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "anthropic/claude-opus-4.6": "Claude Opus 4.6",
-  "anthropic/claude-opus-4.5": "Claude Opus 4.5",
-  "anthropic/claude-sonnet-4.5": "Claude Sonnet 4.5",
+  "anthropic/claude-sonnet-4.6": "Claude Sonnet 4.6",
   "anthropic/claude-haiku-4.5": "Claude Haiku 4.5",
-  "google/gemini-3-pro-preview": "Gemini 3 Pro",
-  "google/gemini-3-flash-preview": "Gemini 3 Flash",
+  "google/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+  "google/gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite",
 };
 
 function getDisplayName(model: string): string {

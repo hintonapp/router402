@@ -38,7 +38,7 @@
         },
         "router402.defaultModel": {
           "type": "string",
-          "default": "anthropic/claude-sonnet-4.5",
+          "default": "anthropic/claude-haiku-4.5",
           "description": "Preferred AI model to use via OpenRouter"
         }
       }

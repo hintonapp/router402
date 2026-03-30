@@ -7,12 +7,11 @@ import { Decimal } from "decimal.js";
 export const PRICING = {
   // Claude models
   "anthropic/claude-opus-4.6": { input: 5.0, output: 25.0 },
-  "anthropic/claude-opus-4.5": { input: 5.0, output: 25.0 },
-  "anthropic/claude-sonnet-4.5": { input: 3.0, output: 15.0 },
+  "anthropic/claude-sonnet-4.6": { input: 3.0, output: 15.0 },
   "anthropic/claude-haiku-4.5": { input: 1.0, output: 5.0 },
   // Gemini models
-  "google/gemini-3-pro-preview": { input: 4.0, output: 18.0 },
-  "google/gemini-3-flash-preview": { input: 0.5, output: 3.0 },
+  "google/gemini-3.1-pro-preview": { input: 2.0, output: 12.0 },
+  "google/gemini-3.1-flash-lite-preview": { input: 0.25, output: 1.5 },
 } as const;
 
 /**
@@ -50,14 +49,14 @@ export function isSupportedModel(model: string): model is SupportedModel {
  * Uses Decimal.js for precise arithmetic to avoid floating-point errors.
  * Prices are per million tokens.
  *
- * @param model - The model identifier (e.g., 'anthropic/claude-sonnet-4.5')
+ * @param model - The model identifier (e.g., 'anthropic/claude-sonnet-4.6')
  * @param promptTokens - Number of input/prompt tokens
  * @param completionTokens - Number of output/completion tokens
  * @returns Cost breakdown with baseCost, commission, and totalCost
  * @throws Error if model is not supported
  *
  * @example
- * const cost = calculateCost('anthropic/claude-sonnet-4.5', 1000, 500);
+ * const cost = calculateCost('anthropic/claude-sonnet-4.6', 1000, 500);
  * // baseCost = (1000/1M * 3.00) + (500/1M * 15.00) = 0.003 + 0.0075 = 0.0105
  * // commission = 0.0105 * 0.10 = 0.00105
  * // totalCost = 0.0105 + 0.00105 = 0.01155

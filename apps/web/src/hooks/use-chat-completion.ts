@@ -11,11 +11,11 @@ import type { ChatMessage } from "@/stores/chat.store";
  * Sources: Anthropic docs (64k for all 4.5 models), Google docs (65,536 for Gemini 3).
  */
 const MODEL_MAX_TOKENS: Record<string, number> = {
-  "anthropic/claude-opus-4.5": 32_000,
-  "anthropic/claude-sonnet-4.5": 32_000,
+  "anthropic/claude-opus-4.6": 64_000,
+  "anthropic/claude-sonnet-4.6": 32_000,
   "anthropic/claude-haiku-4.5": 32_000,
-  "google/gemini-3-pro-preview": 32_768,
-  "google/gemini-3-flash-preview": 32_768,
+  "google/gemini-3.1-pro-preview": 32_768,
+  "google/gemini-3.1-flash-lite-preview": 32_768,
 };
 
 const DEFAULT_MAX_TOKENS = 16_384;

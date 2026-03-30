@@ -179,7 +179,7 @@ async function chat(token, message) {
       "Authorization": `Bearer ${token}`,
     },
     body: JSON.stringify({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "user", content: message },
       ],

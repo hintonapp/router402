@@ -246,7 +246,7 @@ export interface ChatMessage {
  * Options for the chat method
  */
 export interface ChatOptions {
-  /** Model to use (default: "anthropic/claude-sonnet-4.5") */
+  /** Model to use (default: "anthropic/claude-haiku-4.5") */
   model?: string;
   /** Sampling temperature (0-2) */
   temperature?: number;

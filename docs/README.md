@@ -102,7 +102,7 @@ import { Router402Sdk } from '@router402/sdk';
 const sdk = new Router402Sdk({ token: 'your-jwt-token' });
 
 const response = await sdk.chat('Explain x402 in one sentence.', {
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-4.6',
 });
 
 console.log(response);

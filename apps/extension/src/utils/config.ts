@@ -26,10 +26,7 @@ export function getConfig(): Router402Config {
   const cfg = vscode.workspace.getConfiguration("router402");
   return {
     apiEndpoint: cfg.get<string>("apiEndpoint", "https://api.router402.xyz"),
-    defaultModel: cfg.get<string>(
-      "defaultModel",
-      "anthropic/claude-sonnet-4.5"
-    ),
+    defaultModel: cfg.get<string>("defaultModel", "anthropic/claude-haiku-4.5"),
   };
 }
 

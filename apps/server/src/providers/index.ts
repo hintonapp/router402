@@ -21,21 +21,20 @@ import { GeminiProvider } from "./gemini.js";
 /**
  * Mapping of OpenRouter model identifiers to provider-specific model IDs.
  *
- * OpenRouter uses a vendor/model format (e.g., 'anthropic/claude-sonnet-4.5')
- * while providers use their own identifiers (e.g., 'claude-sonnet-4-5-20250929').
+ * OpenRouter uses a vendor/model format (e.g., 'anthropic/claude-sonnet-4.6')
+ * while providers use their own identifiers (e.g., 'claude-sonnet-4-6').
  *
  * @see Requirement 2.4 - Map OpenRouter model identifiers to provider-specific model identifiers
  */
 export const SUPPORTED_MODELS = {
   // Anthropic Claude models
   "anthropic/claude-opus-4.6": "claude-opus-4-6",
-  "anthropic/claude-opus-4.5": "claude-opus-4-5-20251101",
-  "anthropic/claude-sonnet-4.5": "claude-sonnet-4-5-20250929",
+  "anthropic/claude-sonnet-4.6": "claude-sonnet-4-6",
   "anthropic/claude-haiku-4.5": "claude-haiku-4-5-20251001",
 
   // Google Gemini models
-  "google/gemini-3-pro-preview": "gemini-3-pro-preview",
-  "google/gemini-3-flash-preview": "gemini-3-flash-preview",
+  "google/gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
+  "google/gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite-preview",
 } as const;
 
 /**
@@ -100,7 +99,7 @@ export class UnknownProviderError extends Error {
  * 2. Maps the OpenRouter model ID to the provider-specific model ID
  * 3. Instantiates and returns the appropriate provider adapter
  *
- * @param model - OpenRouter model identifier (e.g., 'anthropic/claude-sonnet-4.5')
+ * @param model - OpenRouter model identifier (e.g., 'anthropic/claude-sonnet-4.6')
  * @returns Object containing the provider instance and mapped model ID
  * @throws {UnsupportedModelError} If the model is not in SUPPORTED_MODELS
  * @throws {UnknownProviderError} If the model prefix doesn't match any provider
@@ -112,9 +111,9 @@ export class UnknownProviderError extends Error {
  *
  * @example
  * ```typescript
- * const { provider, modelId } = getProvider('anthropic/claude-sonnet-4.5');
+ * const { provider, modelId } = getProvider('anthropic/claude-sonnet-4.6');
  * // provider is ClaudeProvider instance
- * // modelId is 'claude-sonnet-4-5-20250929'
+ * // modelId is 'claude-sonnet-4-6'
  *
  * const response = await provider.chat({ model: modelId, messages: [...] });
  * ```
@@ -148,7 +147,7 @@ export function getProvider(model: string): ProviderResult {
  *
  * @example
  * ```typescript
- * if (isModelSupported('anthropic/claude-sonnet-4.5')) {
+ * if (isModelSupported('anthropic/claude-sonnet-4.6')) {
  *   // Model is supported
  * }
  * ```
@@ -165,8 +164,8 @@ export function isModelSupported(model: string): model is SupportedModel {
  *
  * @example
  * ```typescript
- * const modelId = getProviderModelId('anthropic/claude-sonnet-4.5');
- * // Returns 'claude-sonnet-4-5-20250929'
+ * const modelId = getProviderModelId('anthropic/claude-sonnet-4.6');
+ * // Returns 'claude-sonnet-4-6'
  * ```
  */
 export function getProviderModelId(model: string): string | undefined {
@@ -181,7 +180,7 @@ export function getProviderModelId(model: string): string | undefined {
  *
  * @example
  * ```typescript
- * const provider = getProviderName('anthropic/claude-sonnet-4.5');
+ * const provider = getProviderName('anthropic/claude-sonnet-4.6');
  * // Returns 'anthropic'
  * ```
  */

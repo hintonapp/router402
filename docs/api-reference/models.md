@@ -18,11 +18,10 @@ curl "https://api.router402.xyz/v1/models"
 {
   "data": [
     "anthropic/claude-opus-4.6",
-    "anthropic/claude-opus-4.5",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "anthropic/claude-haiku-4.5",
-    "google/gemini-3-pro-preview",
-    "google/gemini-3-flash-preview"
+    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.1-flash-lite-preview"
   ]
 }
 ```
@@ -36,10 +35,9 @@ Model identifiers follow the `provider/model-name` format. Use these identifiers
 | Model | Input (per 1M tokens) | Output (per 1M tokens) |
 |-------|----------------------|------------------------|
 | `anthropic/claude-opus-4.6` | $5.00 | $25.00 |
-| `anthropic/claude-opus-4.5` | $5.00 | $25.00 |
-| `anthropic/claude-sonnet-4.5` | $3.00 | $15.00 |
+| `anthropic/claude-sonnet-4.6` | $3.00 | $15.00 |
 | `anthropic/claude-haiku-4.5` | $1.00 | $5.00 |
-| `google/gemini-3-pro-preview` | $4.00 | $18.00 |
-| `google/gemini-3-flash-preview` | $0.50 | $3.00 |
+| `google/gemini-3.1-pro-preview` | $2.00 | $12.00 |
+| `google/gemini-3.1-flash-lite-preview` | $0.25 | $1.50 |
 
 A 10% commission is applied on top of the base token costs.

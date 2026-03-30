@@ -134,7 +134,7 @@ const response = await fetch("https://api.router402.xyz/v1/chat/completions", {
     Authorization: `Bearer ${token}`,
   },
   body: JSON.stringify({
-    model: "anthropic/claude-sonnet-4.5",
+    model: "anthropic/claude-sonnet-4.6",
     messages: [{ role: "user", content: "Hello!" }],
   }),
 });

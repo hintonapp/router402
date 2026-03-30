@@ -10,7 +10,7 @@ export interface ChatMessage {
   errorCode?: number;
 }
 
-export const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
+export const DEFAULT_MODEL = "anthropic/claude-haiku-4.5";
 
 export interface ChatSession {
   id: string;

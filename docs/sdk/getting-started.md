@@ -190,7 +190,7 @@ You can pass options to customize the request:
 
 ```typescript
 const response = await sdk.chat("Explain ERC-4337", {
-  model: "anthropic/claude-haiku-4.5",  // Default: "anthropic/claude-sonnet-4.5"
+  model: "anthropic/claude-haiku-4.5",  // Default: "anthropic/claude-haiku-4.5"
   temperature: 0.7,                     // Sampling temperature (0-2)
   max_tokens: 1024,                     // Maximum tokens to generate
 });
@@ -200,11 +200,11 @@ const response = await sdk.chat("Explain ERC-4337", {
 
 | Model | Provider |
 |-------|----------|
-| `anthropic/claude-opus-4.5` | Anthropic |
-| `anthropic/claude-sonnet-4.5` | Anthropic |
+| `anthropic/claude-opus-4.6` | Anthropic |
+| `anthropic/claude-sonnet-4.6` | Anthropic |
 | `anthropic/claude-haiku-4.5` | Anthropic |
-| `google/gemini-3-pro-preview` | Google |
-| `google/gemini-3-flash-preview` | Google |
+| `google/gemini-3.1-pro-preview` | Google |
+| `google/gemini-3.1-flash-lite-preview` | Google |
 
 ## Complete Example
 
