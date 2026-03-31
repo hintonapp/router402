@@ -389,7 +389,10 @@ function mapFinishReason(
  * @param parts - Array of Gemini parts
  * @returns Concatenated text content or null
  */
-function extractTextContent(parts: Part[], excludeThoughts = false): string | null {
+function extractTextContent(
+  parts: Part[],
+  excludeThoughts = false
+): string | null {
   if (!parts || parts.length === 0) {
     return null;
   }
@@ -397,7 +400,10 @@ function extractTextContent(parts: Part[], excludeThoughts = false): string | nu
   const textParts: string[] = [];
 
   for (const part of parts) {
-    if (excludeThoughts && (part as unknown as Record<string, unknown>).thought === true) {
+    if (
+      excludeThoughts &&
+      (part as unknown as Record<string, unknown>).thought === true
+    ) {
       continue;
     }
     if (
@@ -579,12 +585,17 @@ export class GeminiProvider implements LLMProvider {
       let toolConfig: ToolConfig | undefined;
 
       if (params.tools && params.tools.length > 0) {
-        tools = [
+        const toolDeclarations: FunctionDeclarationsTool[] = [
           {
             functionDeclarations: toGeminiFunctionDeclarations(params.tools),
           },
-          { googleSearch: {} } as unknown as FunctionDeclarationsTool,
         ];
+        if (params.webSearchEnabled) {
+          toolDeclarations.push({
+            googleSearch: {},
+          } as unknown as FunctionDeclarationsTool);
+        }
+        tools = toolDeclarations;
 
         // Set tool choice mode
         const toolChoiceMode = toGeminiToolChoice(params.toolChoice);
@@ -603,7 +614,7 @@ export class GeminiProvider implements LLMProvider {
             ];
           }
         }
-      } else {
+      } else if (params.webSearchEnabled) {
         tools = [{ googleSearch: {} } as unknown as FunctionDeclarationsTool];
       }
 
@@ -664,7 +675,9 @@ export class GeminiProvider implements LLMProvider {
 
       return {
         content: textContent,
-        reasoning: params.thinkingEnabled ? extractGeminiThoughts(parts) : undefined,
+        reasoning: params.thinkingEnabled
+          ? extractGeminiThoughts(parts)
+          : undefined,
         toolCalls,
         finishReason:
           toolCalls && toolCalls.length > 0 ? "tool_calls" : finishReason,
@@ -728,12 +741,17 @@ export class GeminiProvider implements LLMProvider {
       let toolConfig: ToolConfig | undefined;
 
       if (params.tools && params.tools.length > 0) {
-        tools = [
+        const toolDeclarations: FunctionDeclarationsTool[] = [
           {
             functionDeclarations: toGeminiFunctionDeclarations(params.tools),
           },
-          { googleSearch: {} } as unknown as FunctionDeclarationsTool,
         ];
+        if (params.webSearchEnabled) {
+          toolDeclarations.push({
+            googleSearch: {},
+          } as unknown as FunctionDeclarationsTool);
+        }
+        tools = toolDeclarations;
 
         // Set tool choice mode
         const toolChoiceMode = toGeminiToolChoice(params.toolChoice);
@@ -752,7 +770,7 @@ export class GeminiProvider implements LLMProvider {
             ];
           }
         }
-      } else {
+      } else if (params.webSearchEnabled) {
         tools = [{ googleSearch: {} } as unknown as FunctionDeclarationsTool];
       }
 

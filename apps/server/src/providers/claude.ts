@@ -513,9 +513,10 @@ export class ClaudeProvider implements LLMProvider {
       const messages = translateMessages(params.messages);
 
       // Build request parameters
-      const effectiveMaxTokens = params.thinkingEnabled && this.isHaikuModel(params.model)
-        ? Math.max(params.maxTokens || 16384, 16384)
-        : params.maxTokens || 4096;
+      const effectiveMaxTokens =
+        params.thinkingEnabled && this.isHaikuModel(params.model)
+          ? Math.max(params.maxTokens || 16384, 16384)
+          : params.maxTokens || 4096;
 
       const requestParams: Record<string, unknown> = {
         model: params.model,
@@ -558,7 +559,9 @@ export class ClaudeProvider implements LLMProvider {
       }
 
       // Add tools if present
-      const builtInTools = this.getBuiltInTools(params.model);
+      const builtInTools = params.webSearchEnabled
+        ? this.getBuiltInTools(params.model)
+        : [];
       if (params.tools && params.tools.length > 0) {
         requestParams.tools = [
           ...toClaudeToolsWithSchema(params.tools),
@@ -569,13 +572,13 @@ export class ClaudeProvider implements LLMProvider {
         if (toolChoice) {
           requestParams.tool_choice = toolChoice;
         }
-      } else {
+      } else if (builtInTools.length > 0) {
         requestParams.tools = builtInTools;
       }
 
-      const response = await this.client.messages.create(
+      const response = (await this.client.messages.create(
         requestParams as unknown as Anthropic.MessageCreateParamsNonStreaming
-      ) as AnthropicMessage;
+      )) as AnthropicMessage;
 
       // Extract content and tool calls
       const textContent = extractTextContent(response.content);
@@ -587,7 +590,9 @@ export class ClaudeProvider implements LLMProvider {
 
       return {
         content: textContent,
-        reasoning: params.thinkingEnabled ? extractThinkingContent(response.content) : undefined,
+        reasoning: params.thinkingEnabled
+          ? extractThinkingContent(response.content)
+          : undefined,
         toolCalls,
         finishReason: mapStopReason(response.stop_reason),
         usage: {
@@ -595,7 +600,9 @@ export class ClaudeProvider implements LLMProvider {
           completionTokens: response.usage.output_tokens,
         },
         // Preserve raw content blocks for multi-turn thinking (signatures)
-        rawAssistantParts: params.thinkingEnabled ? response.content : undefined,
+        rawAssistantParts: params.thinkingEnabled
+          ? response.content
+          : undefined,
       };
     } catch (error) {
       throw translateError(error);
@@ -615,9 +622,10 @@ export class ClaudeProvider implements LLMProvider {
       const messages = translateMessages(params.messages);
 
       // Build request parameters
-      const effectiveMaxTokens = params.thinkingEnabled && this.isHaikuModel(params.model)
-        ? Math.max(params.maxTokens || 16384, 16384)
-        : params.maxTokens || 4096;
+      const effectiveMaxTokens =
+        params.thinkingEnabled && this.isHaikuModel(params.model)
+          ? Math.max(params.maxTokens || 16384, 16384)
+          : params.maxTokens || 4096;
 
       const requestParams: Record<string, unknown> = {
         model: params.model,
@@ -656,7 +664,9 @@ export class ClaudeProvider implements LLMProvider {
       }
 
       // Add tools if present
-      const builtInTools = this.getBuiltInTools(params.model);
+      const builtInTools = params.webSearchEnabled
+        ? this.getBuiltInTools(params.model)
+        : [];
       if (params.tools && params.tools.length > 0) {
         requestParams.tools = [
           ...toClaudeToolsWithSchema(params.tools),
@@ -667,7 +677,7 @@ export class ClaudeProvider implements LLMProvider {
         if (toolChoice) {
           requestParams.tool_choice = toolChoice;
         }
-      } else {
+      } else if (builtInTools.length > 0) {
         requestParams.tools = builtInTools;
       }
 
@@ -699,7 +709,9 @@ export class ClaudeProvider implements LLMProvider {
 
         // Accumulate content blocks for multi-turn thinking
         if (params.thinkingEnabled && event.type === "content_block_start") {
-          accumulatedBlocks.push(event.content_block as unknown as ContentBlock);
+          accumulatedBlocks.push(
+            event.content_block as unknown as ContentBlock
+          );
         }
 
         // Track usage from message_start event
@@ -734,9 +746,10 @@ export class ClaudeProvider implements LLMProvider {
               promptTokens: inputTokens,
               completionTokens: outputTokens,
             },
-            rawAssistantParts: params.thinkingEnabled && accumulatedBlocks.length > 0
-              ? accumulatedBlocks
-              : undefined,
+            rawAssistantParts:
+              params.thinkingEnabled && accumulatedBlocks.length > 0
+                ? accumulatedBlocks
+                : undefined,
           };
         }
       }
@@ -778,7 +791,9 @@ export class ClaudeProvider implements LLMProvider {
           return { content: delta.text };
         }
         if ((delta as { type: string }).type === "thinking_delta") {
-          return { reasoning: (delta as unknown as { thinking: string }).thinking };
+          return {
+            reasoning: (delta as unknown as { thinking: string }).thinking,
+          };
         }
         if (delta.type === "input_json_delta") {
           const toolCall = toolCallsInProgress.get(event.index);

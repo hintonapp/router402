@@ -60,6 +60,9 @@ export interface ChatParams {
 
   /** Whether thinking/reasoning mode is enabled (:thinking variant) */
   thinkingEnabled?: boolean;
+
+  /** Whether web search tools are enabled (via plugins: [{ id: "web" }]) */
+  webSearchEnabled?: boolean;
 }
 
 // ============================================================================

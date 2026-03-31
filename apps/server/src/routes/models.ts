@@ -1,7 +1,7 @@
 import { Router as ExpressRouter, type Router } from "express";
 import {
-  SUPPORTED_MODELS,
   MODEL_CAPABILITIES,
+  SUPPORTED_MODELS,
   type SupportedModel,
 } from "../providers/index.js";
 

@@ -61,11 +61,31 @@ export interface ModelCapabilities {
 }
 
 export const MODEL_CAPABILITIES: Record<SupportedModel, ModelCapabilities> = {
-  "anthropic/claude-opus-4.6": { thinking: true, webSearch: true, codeExecution: true },
-  "anthropic/claude-sonnet-4.6": { thinking: true, webSearch: true, codeExecution: true },
-  "anthropic/claude-haiku-4.5": { thinking: true, webSearch: true, codeExecution: true },
-  "google/gemini-3.1-pro-preview": { thinking: true, webSearch: true, codeExecution: false },
-  "google/gemini-3.1-flash-lite-preview": { thinking: true, webSearch: true, codeExecution: false },
+  "anthropic/claude-opus-4.6": {
+    thinking: true,
+    webSearch: true,
+    codeExecution: true,
+  },
+  "anthropic/claude-sonnet-4.6": {
+    thinking: true,
+    webSearch: true,
+    codeExecution: true,
+  },
+  "anthropic/claude-haiku-4.5": {
+    thinking: true,
+    webSearch: true,
+    codeExecution: true,
+  },
+  "google/gemini-3.1-pro-preview": {
+    thinking: true,
+    webSearch: true,
+    codeExecution: false,
+  },
+  "google/gemini-3.1-flash-lite-preview": {
+    thinking: true,
+    webSearch: true,
+    codeExecution: false,
+  },
 };
 
 // ============================================================================
@@ -120,7 +140,9 @@ export function parseModelVariant(model: string): ParsedModel {
 /**
  * List of all supported model identifiers (including :thinking variants) for error messages.
  */
-export const SUPPORTED_MODEL_LIST: string[] = Object.keys(SUPPORTED_MODELS).flatMap((key) => {
+export const SUPPORTED_MODEL_LIST: string[] = Object.keys(
+  SUPPORTED_MODELS
+).flatMap((key) => {
   const caps = MODEL_CAPABILITIES[key as SupportedModel];
   return caps?.thinking ? [key, `${key}:thinking`] : [key];
 });
@@ -226,7 +248,10 @@ export function getProvider(model: string): ProviderResult {
 export function isModelSupported(model: string): boolean {
   if (model.endsWith(":thinking")) {
     const base = model.slice(0, -":thinking".length);
-    return base in SUPPORTED_MODELS && MODEL_CAPABILITIES[base as SupportedModel]?.thinking === true;
+    return (
+      base in SUPPORTED_MODELS &&
+      MODEL_CAPABILITIES[base as SupportedModel]?.thinking === true
+    );
   }
   return model in SUPPORTED_MODELS;
 }

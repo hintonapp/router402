@@ -12,7 +12,11 @@ import { randomUUID } from "node:crypto";
 import { getChainConfig } from "../config/chain.js";
 import { getConfig } from "../config/index.js";
 import type { ChatChunk, ChatParams, ChatResponse } from "../providers/base.js";
-import { getProvider, parseModelVariant, type ParsedModel } from "../providers/index.js";
+import {
+  getProvider,
+  type ParsedModel,
+  parseModelVariant,
+} from "../providers/index.js";
 import type {
   ChatCompletionChunk,
   ChatCompletionRequest,
@@ -154,8 +158,14 @@ export class ChatService {
     const { provider, modelId } = getProvider(parsed.baseModel);
 
     const hasLifiPlugin = this.hasPlugin(request, "lifi");
+    const hasWebPlugin = this.hasPlugin(request, "web");
 
-    const params = this.buildParams(request, modelId, parsed.thinkingEnabled);
+    const params = this.buildParams(
+      request,
+      modelId,
+      parsed.thinkingEnabled,
+      hasWebPlugin
+    );
 
     // Only include MCP tools and system prompt when the lifi plugin is active
     if (hasLifiPlugin) {
@@ -223,7 +233,7 @@ export class ChatService {
     }
 
     response.usage = totalUsage;
-    return this.formatResponse(request.model!, response);
+    return this.formatResponse(request.model ?? "", response);
   }
 
   /**
@@ -250,8 +260,14 @@ export class ChatService {
     const { provider, modelId } = getProvider(parsed.baseModel);
 
     const hasLifiPlugin = this.hasPlugin(request, "lifi");
+    const hasWebPlugin = this.hasPlugin(request, "web");
 
-    const params = this.buildParams(request, modelId, parsed.thinkingEnabled);
+    const params = this.buildParams(
+      request,
+      modelId,
+      parsed.thinkingEnabled,
+      hasWebPlugin
+    );
 
     // Only include MCP tools and system prompt when the lifi plugin is active
     if (hasLifiPlugin) {
@@ -289,7 +305,7 @@ export class ChatService {
           rawAssistantParts = chunk.rawAssistantParts;
         }
 
-        yield this.formatChunk(request.model!, chunk, responseId, created);
+        yield this.formatChunk(request.model ?? "", chunk, responseId, created);
       }
 
       // After stream ends, check if we need to execute MCP tools
@@ -481,7 +497,8 @@ export class ChatService {
   private buildParams(
     request: ChatCompletionRequest,
     modelId: string,
-    thinkingEnabled?: boolean
+    thinkingEnabled?: boolean,
+    webSearchEnabled?: boolean
   ): ChatParams {
     return {
       messages: request.messages,
@@ -495,6 +512,7 @@ export class ChatService {
       toolChoice: request.tool_choice,
       responseFormat: request.response_format,
       thinkingEnabled,
+      webSearchEnabled,
     };
   }
 
@@ -568,7 +586,11 @@ export class ChatService {
     const delta: ChunkDelta = {};
 
     // Include role in first chunk (when content starts)
-    if (chunk.content !== undefined || chunk.toolCalls !== undefined || chunk.reasoning !== undefined) {
+    if (
+      chunk.content !== undefined ||
+      chunk.toolCalls !== undefined ||
+      chunk.reasoning !== undefined
+    ) {
       delta.role = "assistant";
     }
 

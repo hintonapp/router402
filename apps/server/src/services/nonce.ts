@@ -5,7 +5,7 @@
  * Each nonce is single-use and expires after a TTL.
  */
 
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 
 const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
