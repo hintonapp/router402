@@ -13,7 +13,6 @@ export {
   type CostBreakdown,
   calculateCost,
   isSupportedModel,
-  PRICING,
   type SupportedModel,
 } from "./pricing.js";
 export {

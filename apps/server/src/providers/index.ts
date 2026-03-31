@@ -2,104 +2,81 @@
  * Provider Registry
  *
  * Factory module for selecting and instantiating LLM provider adapters
- * based on OpenRouter model identifiers. Maps OpenRouter model IDs to
- * provider-specific model IDs and returns the appropriate provider instance.
+ * based on OpenRouter model identifiers. Derives all model data from
+ * the central MODEL_REGISTRY.
  *
  * @module providers/index
  * @see Requirements 2.1, 2.2, 2.3, 2.4
  */
 
+import {
+  getAllModelIds,
+  getModelDefinition,
+  hasFeature,
+  type ModelFeature,
+  type Provider,
+  getProviderModelId as registryGetProviderModelId,
+  getProviderName as registryGetProviderName,
+  isModelSupported as registryIsModelSupported,
+  type SupportedModel,
+} from "../models/registry.js";
 import type { LLMProvider } from "./base.js";
 import { UnsupportedModelError } from "./base.js";
 import { ClaudeProvider } from "./claude.js";
 import { GeminiProvider } from "./gemini.js";
 
 // ============================================================================
-// Supported Models Mapping
+// Re-exports from registry
 // ============================================================================
 
-/**
- * Mapping of OpenRouter model identifiers to provider-specific model IDs.
- *
- * OpenRouter uses a vendor/model format (e.g., 'anthropic/claude-sonnet-4.6')
- * while providers use their own identifiers (e.g., 'claude-sonnet-4-6').
- *
- * @see Requirement 2.4 - Map OpenRouter model identifiers to provider-specific model identifiers
- */
-export const SUPPORTED_MODELS = {
-  // Anthropic Claude models
-  "anthropic/claude-opus-4.6": "claude-opus-4-6",
-  "anthropic/claude-sonnet-4.6": "claude-sonnet-4-6",
-  "anthropic/claude-haiku-4.5": "claude-haiku-4-5-20251001",
+export type { SupportedModel, Provider, ModelFeature };
 
-  // Google Gemini models
-  "google/gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
-  "google/gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite-preview",
-} as const;
-
-/**
- * Type representing all supported OpenRouter model identifiers.
- */
-export type SupportedModel = keyof typeof SUPPORTED_MODELS;
-
-/**
- * Type representing all provider-specific model identifiers.
- */
-export type ProviderModelId = (typeof SUPPORTED_MODELS)[SupportedModel];
+export {
+  getBaseModelIds,
+  getModelDefinition,
+  hasFeature,
+  MODEL_REGISTRY,
+  type ModelDefinition,
+  type ProviderModelId,
+} from "../models/registry.js";
 
 // ============================================================================
-// Model Capabilities
+// Model Capabilities (derived from registry features)
 // ============================================================================
 
-/**
- * Capabilities metadata for each supported model.
- */
 export interface ModelCapabilities {
   thinking: boolean;
   webSearch: boolean;
-  codeExecution: boolean;
 }
 
-export const MODEL_CAPABILITIES: Record<SupportedModel, ModelCapabilities> = {
-  "anthropic/claude-opus-4.6": {
-    thinking: true,
-    webSearch: true,
-    codeExecution: true,
-  },
-  "anthropic/claude-sonnet-4.6": {
-    thinking: true,
-    webSearch: true,
-    codeExecution: true,
-  },
-  "anthropic/claude-haiku-4.5": {
-    thinking: true,
-    webSearch: true,
-    codeExecution: true,
-  },
-  "google/gemini-3.1-pro-preview": {
-    thinking: true,
-    webSearch: true,
-    codeExecution: false,
-  },
-  "google/gemini-3.1-flash-lite-preview": {
-    thinking: true,
-    webSearch: true,
-    codeExecution: false,
-  },
-};
+/**
+ * Get capabilities for a model, derived from the registry features array.
+ */
+export function getModelCapabilities(
+  model: string
+): ModelCapabilities | undefined {
+  const def = getModelDefinition(model);
+  if (!def) return undefined;
+  return {
+    thinking: def.features.includes("thinking"),
+    webSearch: def.features.includes("web_search"),
+  };
+}
 
 // ============================================================================
 // Model Variant Parsing
 // ============================================================================
 
-/**
- * Result of parsing a model string that may include a :thinking variant.
- */
 export interface ParsedModel {
   baseModel: SupportedModel;
   modelId: string;
   thinkingEnabled: boolean;
 }
+
+/**
+ * List of all supported model identifiers (including :thinking variants) for error messages.
+ */
+export const SUPPORTED_MODEL_LIST: string[] = getAllModelIds();
 
 /**
  * Parses a model string, stripping the :thinking variant suffix if present.
@@ -118,16 +95,13 @@ export function parseModelVariant(model: string): ParsedModel {
     thinkingEnabled = true;
   }
 
-  const modelId = SUPPORTED_MODELS[baseModelKey as SupportedModel];
+  const modelId = registryGetProviderModelId(baseModelKey);
   if (!modelId) {
     throw new UnsupportedModelError(model, SUPPORTED_MODEL_LIST);
   }
 
-  if (thinkingEnabled) {
-    const capabilities = MODEL_CAPABILITIES[baseModelKey as SupportedModel];
-    if (!capabilities?.thinking) {
-      throw new UnsupportedModelError(model, SUPPORTED_MODEL_LIST);
-    }
+  if (thinkingEnabled && !hasFeature(baseModelKey, "thinking")) {
+    throw new UnsupportedModelError(model, SUPPORTED_MODEL_LIST);
   }
 
   return {
@@ -137,42 +111,21 @@ export function parseModelVariant(model: string): ParsedModel {
   };
 }
 
-/**
- * List of all supported model identifiers (including :thinking variants) for error messages.
- */
-export const SUPPORTED_MODEL_LIST: string[] = Object.keys(
-  SUPPORTED_MODELS
-).flatMap((key) => {
-  const caps = MODEL_CAPABILITIES[key as SupportedModel];
-  return caps?.thinking ? [key, `${key}:thinking`] : [key];
-});
-
 // ============================================================================
 // Provider Factory
 // ============================================================================
 
-/**
- * Result of getProvider() containing the provider instance and mapped model ID.
- */
 export interface ProviderResult {
-  /** The LLM provider adapter instance */
   provider: LLMProvider;
-  /** The provider-specific model identifier */
   modelId: string;
 }
 
-/**
- * Error thrown when a model prefix doesn't match any known provider.
- * This is a programming error - if a model is in SUPPORTED_MODELS,
- * its prefix should be handled in getProvider().
- */
 export class UnknownProviderError extends Error {
-  /** The model that has an unknown provider prefix */
   public readonly model: string;
 
   constructor(model: string) {
     super(
-      `Unknown provider for model '${model}'. This is an internal error - the model is in SUPPORTED_MODELS but has no provider handler.`
+      `Unknown provider for model '${model}'. This is an internal error - the model is in MODEL_REGISTRY but has no provider handler.`
     );
     this.name = "UnknownProviderError";
     this.model = model;
@@ -187,111 +140,50 @@ export class UnknownProviderError extends Error {
  * Factory function that returns the appropriate provider adapter based on
  * the OpenRouter model identifier.
  *
- * The function:
- * 1. Validates the model is supported
- * 2. Maps the OpenRouter model ID to the provider-specific model ID
- * 3. Instantiates and returns the appropriate provider adapter
- *
  * @param model - OpenRouter model identifier (e.g., 'anthropic/claude-sonnet-4.6')
  * @returns Object containing the provider instance and mapped model ID
- * @throws {UnsupportedModelError} If the model is not in SUPPORTED_MODELS
+ * @throws {UnsupportedModelError} If the model is not in MODEL_REGISTRY
  * @throws {UnknownProviderError} If the model prefix doesn't match any provider
- *
- * @see Requirement 2.1 - Route anthropic/* models to Claude Provider
- * @see Requirement 2.2 - Route google/* models to Gemini Provider
- * @see Requirement 2.3 - Return 400 error for unsupported models listing supported models
- * @see Requirement 2.4 - Map OpenRouter model identifiers to provider-specific model identifiers
- *
- * @example
- * ```typescript
- * const { provider, modelId } = getProvider('anthropic/claude-sonnet-4.6');
- * // provider is ClaudeProvider instance
- * // modelId is 'claude-sonnet-4-6'
- *
- * const response = await provider.chat({ model: modelId, messages: [...] });
- * ```
  */
 export function getProvider(model: string): ProviderResult {
-  // Check if model is supported and get the provider-specific model ID
-  const modelId = SUPPORTED_MODELS[model as SupportedModel];
+  const modelId = registryGetProviderModelId(model);
 
   if (!modelId) {
     throw new UnsupportedModelError(model, SUPPORTED_MODEL_LIST);
   }
 
-  // Route to appropriate provider based on model prefix
-  if (model.startsWith("anthropic/")) {
+  const providerName = registryGetProviderName(model);
+
+  if (providerName === "anthropic") {
     return { provider: new ClaudeProvider(), modelId };
   }
 
-  if (model.startsWith("google/")) {
+  if (providerName === "google") {
     return { provider: new GeminiProvider(), modelId };
   }
 
-  // This should never happen if SUPPORTED_MODELS is properly maintained
   throw new UnknownProviderError(model);
 }
 
 /**
  * Check if a model identifier is supported.
- *
- * @param model - Model identifier to check
- * @returns true if the model is supported, false otherwise
- *
- * @example
- * ```typescript
- * if (isModelSupported('anthropic/claude-sonnet-4.6')) {
- *   // Model is supported
- * }
- * ```
  */
 export function isModelSupported(model: string): boolean {
-  if (model.endsWith(":thinking")) {
-    const base = model.slice(0, -":thinking".length);
-    return (
-      base in SUPPORTED_MODELS &&
-      MODEL_CAPABILITIES[base as SupportedModel]?.thinking === true
-    );
-  }
-  return model in SUPPORTED_MODELS;
+  return registryIsModelSupported(model);
 }
 
 /**
  * Get the provider-specific model ID for a supported model.
- *
- * @param model - OpenRouter model identifier
- * @returns The provider-specific model ID, or undefined if not supported
- *
- * @example
- * ```typescript
- * const modelId = getProviderModelId('anthropic/claude-sonnet-4.6');
- * // Returns 'claude-sonnet-4-6'
- * ```
  */
 export function getProviderModelId(model: string): string | undefined {
-  return SUPPORTED_MODELS[model as SupportedModel];
+  return registryGetProviderModelId(model);
 }
 
 /**
  * Get the provider name for a model identifier.
- *
- * @param model - Model identifier
- * @returns 'anthropic' | 'google' | undefined
- *
- * @example
- * ```typescript
- * const provider = getProviderName('anthropic/claude-sonnet-4.6');
- * // Returns 'anthropic'
- * ```
  */
 export function getProviderName(
   model: string
 ): "anthropic" | "google" | undefined {
-  if (model.startsWith("anthropic/")) {
-    return "anthropic";
-  }
-  if (model.startsWith("google/")) {
-    return "google";
-  }
-  return undefined;
+  return registryGetProviderName(model);
 }

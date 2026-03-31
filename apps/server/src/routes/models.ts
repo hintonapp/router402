@@ -1,24 +1,26 @@
 import { Router as ExpressRouter, type Router } from "express";
-import {
-  MODEL_CAPABILITIES,
-  SUPPORTED_MODELS,
-  type SupportedModel,
-} from "../providers/index.js";
+import { MODEL_REGISTRY, type ModelDefinition } from "../models/registry.js";
 
 export const modelsRouter: Router = ExpressRouter();
 
 modelsRouter.get("/", (_req, res) => {
-  const models = Object.keys(SUPPORTED_MODELS).map((key) => {
-    const capabilities = MODEL_CAPABILITIES[key as SupportedModel];
-    const variants = [key];
-    if (capabilities?.thinking) {
-      variants.push(`${key}:thinking`);
-    }
-    return {
-      id: key,
-      variants,
-      capabilities,
-    };
-  });
-  res.json({ data: models });
+  const data = Object.entries(MODEL_REGISTRY).map(([provider, models]) => ({
+    provider,
+    models: Object.entries(models).map(([id, def]) => {
+      const model = def as ModelDefinition;
+      const variants = [id];
+      if (model.features.includes("thinking")) {
+        variants.push(`${id}:thinking`);
+      }
+      return {
+        id,
+        name: model.name,
+        variants,
+        pricing: model.pricing,
+        features: model.features,
+      };
+    }),
+  }));
+
+  res.json({ data });
 });
