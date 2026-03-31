@@ -37,29 +37,32 @@ export interface CostBreakdown {
 }
 
 /**
- * Checks if a model is supported for pricing
+ * Strips the :thinking variant suffix from a model identifier.
+ */
+function stripVariant(model: string): string {
+  return model.endsWith(":thinking")
+    ? model.slice(0, -":thinking".length)
+    : model;
+}
+
+/**
+ * Checks if a model is supported for pricing (handles :thinking variant)
  */
 export function isSupportedModel(model: string): model is SupportedModel {
-  return model in PRICING;
+  return stripVariant(model) in PRICING;
 }
 
 /**
  * Calculates the cost for a given model and token usage.
  *
  * Uses Decimal.js for precise arithmetic to avoid floating-point errors.
- * Prices are per million tokens.
+ * Prices are per million tokens. Handles :thinking variant suffix.
  *
- * @param model - The model identifier (e.g., 'anthropic/claude-sonnet-4.6')
+ * @param model - The model identifier (e.g., 'anthropic/claude-sonnet-4.6' or 'anthropic/claude-sonnet-4.6:thinking')
  * @param promptTokens - Number of input/prompt tokens
  * @param completionTokens - Number of output/completion tokens
  * @returns Cost breakdown with baseCost, commission, and totalCost
  * @throws Error if model is not supported
- *
- * @example
- * const cost = calculateCost('anthropic/claude-sonnet-4.6', 1000, 500);
- * // baseCost = (1000/1M * 3.00) + (500/1M * 15.00) = 0.003 + 0.0075 = 0.0105
- * // commission = 0.0105 * 0.10 = 0.00105
- * // totalCost = 0.0105 + 0.00105 = 0.01155
  *
  * Validates: Requirements 8.1, 8.2, 8.3, 8.4
  */
@@ -68,11 +71,12 @@ export function calculateCost(
   promptTokens: number,
   completionTokens: number
 ): CostBreakdown {
-  if (!isSupportedModel(model)) {
+  const baseModel = stripVariant(model);
+  if (!(baseModel in PRICING)) {
     throw new Error(`Unsupported model for pricing: ${model}`);
   }
 
-  const pricing = PRICING[model];
+  const pricing = PRICING[baseModel as SupportedModel];
 
   // Calculate input cost: (promptTokens / 1,000,000) * inputPrice
   const inputCost = new Decimal(promptTokens).div(1_000_000).mul(pricing.input);

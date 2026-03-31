@@ -47,12 +47,83 @@ export type SupportedModel = keyof typeof SUPPORTED_MODELS;
  */
 export type ProviderModelId = (typeof SUPPORTED_MODELS)[SupportedModel];
 
+// ============================================================================
+// Model Capabilities
+// ============================================================================
+
 /**
- * List of all supported model identifiers for error messages.
+ * Capabilities metadata for each supported model.
  */
-export const SUPPORTED_MODEL_LIST = Object.keys(
-  SUPPORTED_MODELS
-) as SupportedModel[];
+export interface ModelCapabilities {
+  thinking: boolean;
+  webSearch: boolean;
+  codeExecution: boolean;
+}
+
+export const MODEL_CAPABILITIES: Record<SupportedModel, ModelCapabilities> = {
+  "anthropic/claude-opus-4.6": { thinking: true, webSearch: true, codeExecution: true },
+  "anthropic/claude-sonnet-4.6": { thinking: true, webSearch: true, codeExecution: true },
+  "anthropic/claude-haiku-4.5": { thinking: true, webSearch: true, codeExecution: true },
+  "google/gemini-3.1-pro-preview": { thinking: true, webSearch: true, codeExecution: false },
+  "google/gemini-3.1-flash-lite-preview": { thinking: true, webSearch: true, codeExecution: false },
+};
+
+// ============================================================================
+// Model Variant Parsing
+// ============================================================================
+
+/**
+ * Result of parsing a model string that may include a :thinking variant.
+ */
+export interface ParsedModel {
+  baseModel: SupportedModel;
+  modelId: string;
+  thinkingEnabled: boolean;
+}
+
+/**
+ * Parses a model string, stripping the :thinking variant suffix if present.
+ * Validates the base model is supported and that the variant is allowed.
+ *
+ * @param model - Model identifier, optionally with :thinking suffix
+ * @returns Parsed model info
+ * @throws {UnsupportedModelError} If the model or variant is not supported
+ */
+export function parseModelVariant(model: string): ParsedModel {
+  let baseModelKey = model;
+  let thinkingEnabled = false;
+
+  if (model.endsWith(":thinking")) {
+    baseModelKey = model.slice(0, -":thinking".length);
+    thinkingEnabled = true;
+  }
+
+  const modelId = SUPPORTED_MODELS[baseModelKey as SupportedModel];
+  if (!modelId) {
+    throw new UnsupportedModelError(model, SUPPORTED_MODEL_LIST);
+  }
+
+  if (thinkingEnabled) {
+    const capabilities = MODEL_CAPABILITIES[baseModelKey as SupportedModel];
+    if (!capabilities?.thinking) {
+      throw new UnsupportedModelError(model, SUPPORTED_MODEL_LIST);
+    }
+  }
+
+  return {
+    baseModel: baseModelKey as SupportedModel,
+    modelId,
+    thinkingEnabled,
+  };
+}
+
+/**
+ * List of all supported model identifiers (including :thinking variants) for error messages.
+ */
+export const SUPPORTED_MODEL_LIST: string[] = Object.keys(SUPPORTED_MODELS).flatMap((key) => {
+  const caps = MODEL_CAPABILITIES[key as SupportedModel];
+  return caps?.thinking ? [key, `${key}:thinking`] : [key];
+});
 
 // ============================================================================
 // Provider Factory
@@ -152,7 +223,11 @@ export function getProvider(model: string): ProviderResult {
  * }
  * ```
  */
-export function isModelSupported(model: string): model is SupportedModel {
+export function isModelSupported(model: string): boolean {
+  if (model.endsWith(":thinking")) {
+    const base = model.slice(0, -":thinking".length);
+    return base in SUPPORTED_MODELS && MODEL_CAPABILITIES[base as SupportedModel]?.thinking === true;
+  }
   return model in SUPPORTED_MODELS;
 }
 

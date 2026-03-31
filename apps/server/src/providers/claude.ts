@@ -252,46 +252,58 @@ export function translateMessages(messages: Message[]): MessageParam[] {
         });
       }
     } else if (message.role === "assistant") {
-      // Assistant messages map directly
-      const content: ContentBlockParam[] = [];
+      // If raw content blocks are available (from agentic loop with thinking),
+      // use them directly to preserve thinking blocks + signatures
+      const rawParts = (message as Record<string, unknown>)._rawParts as
+        | ContentBlockParam[]
+        | undefined;
+      if (rawParts && Array.isArray(rawParts)) {
+        claudeMessages.push({
+          role: "assistant",
+          content: rawParts,
+        });
+      } else {
+        // Assistant messages map directly
+        const content: ContentBlockParam[] = [];
 
-      // Add text content
-      if (message.content) {
-        const textContent =
-          typeof message.content === "string"
-            ? message.content
-            : message.content
-                .filter(
-                  (part): part is { type: "text"; text: string } =>
-                    part.type === "text"
-                )
-                .map((part) => part.text)
-                .join("\n");
+        // Add text content
+        if (message.content) {
+          const textContent =
+            typeof message.content === "string"
+              ? message.content
+              : message.content
+                  .filter(
+                    (part): part is { type: "text"; text: string } =>
+                      part.type === "text"
+                  )
+                  .map((part) => part.text)
+                  .join("\n");
 
-        if (textContent) {
-          content.push({ type: "text", text: textContent } as TextBlockParam);
+          if (textContent) {
+            content.push({ type: "text", text: textContent } as TextBlockParam);
+          }
         }
-      }
 
-      // Add tool calls as tool_use blocks
-      if (message.tool_calls) {
-        for (const toolCall of message.tool_calls) {
-          content.push({
-            type: "tool_use",
-            id: toolCall.id,
-            name: toolCall.function.name,
-            input: JSON.parse(toolCall.function.arguments),
-          } as ToolUseBlockParam);
+        // Add tool calls as tool_use blocks
+        if (message.tool_calls) {
+          for (const toolCall of message.tool_calls) {
+            content.push({
+              type: "tool_use",
+              id: toolCall.id,
+              name: toolCall.function.name,
+              input: JSON.parse(toolCall.function.arguments),
+            } as ToolUseBlockParam);
+          }
         }
-      }
 
-      claudeMessages.push({
-        role: "assistant",
-        content:
-          content.length > 0
-            ? content
-            : [{ type: "text", text: "" } as TextBlockParam],
-      });
+        claudeMessages.push({
+          role: "assistant",
+          content:
+            content.length > 0
+              ? content
+              : [{ type: "text", text: "" } as TextBlockParam],
+        });
+      }
     } else if (message.role === "user") {
       // User messages map directly
       const content = convertContentToClaude(message.content);
@@ -351,6 +363,28 @@ function extractTextContent(content: ContentBlock[]): string | null {
   }
 
   return textBlocks.map((block) => block.text).join("");
+}
+
+/**
+ * Extracts thinking/reasoning content from Claude content blocks.
+ * Thinking blocks have type "thinking" with a "thinking" text field.
+ *
+ * @param content - Array of Claude content blocks
+ * @returns Concatenated thinking content or null
+ */
+function extractThinkingContent(content: ContentBlock[]): string | null {
+  const thinkingBlocks = content.filter(
+    (block) => (block as { type: string }).type === "thinking"
+  );
+
+  if (thinkingBlocks.length === 0) {
+    return null;
+  }
+
+  return thinkingBlocks
+    .map((block) => (block as unknown as { thinking: string }).thinking)
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**
@@ -440,6 +474,32 @@ export class ClaudeProvider implements LLMProvider {
     });
   }
 
+  private isHaikuModel(model: string): boolean {
+    return model.includes("haiku");
+  }
+
+  private getBuiltInTools(model: string): ClaudeToolType[] {
+    const webFetchTool = this.isHaikuModel(model)
+      ? {
+          type: "web_fetch_20260209",
+          name: "web_fetch",
+          allowed_callers: ["direct"],
+        }
+      : {
+          type: "web_fetch_20260209",
+          name: "web_fetch",
+        };
+
+    return [
+      {
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: 5,
+      } as unknown as ClaudeToolType,
+      webFetchTool as unknown as ClaudeToolType,
+    ];
+  }
+
   /**
    * Perform a non-streaming chat completion.
    *
@@ -453,10 +513,14 @@ export class ClaudeProvider implements LLMProvider {
       const messages = translateMessages(params.messages);
 
       // Build request parameters
-      const requestParams: Anthropic.MessageCreateParams = {
+      const effectiveMaxTokens = params.thinkingEnabled && this.isHaikuModel(params.model)
+        ? Math.max(params.maxTokens || 16384, 16384)
+        : params.maxTokens || 4096;
+
+      const requestParams: Record<string, unknown> = {
         model: params.model,
         messages: messages,
-        max_tokens: params.maxTokens || 4096,
+        max_tokens: effectiveMaxTokens,
       };
 
       // Add system message if present
@@ -465,11 +529,27 @@ export class ClaudeProvider implements LLMProvider {
         requestParams.system = systemMessage;
       }
 
-      // Add generation parameters
-      // @see Requirements 7.1, 7.3, 7.5
-      if (params.temperature !== undefined) {
-        requestParams.temperature = params.temperature;
+      // Add thinking configuration when enabled
+      if (params.thinkingEnabled) {
+        if (this.isHaikuModel(params.model)) {
+          // Haiku only supports "enabled" with explicit budget_tokens
+          requestParams.thinking = {
+            type: "enabled",
+            budget_tokens: Math.max(effectiveMaxTokens - 1024, 1024),
+          };
+        } else {
+          // Opus and Sonnet support "adaptive" (not in SDK types yet)
+          requestParams.thinking = { type: "adaptive" };
+        }
+        // Temperature must not be set when thinking is enabled
+      } else {
+        // Add generation parameters only when thinking is disabled
+        // @see Requirements 7.1, 7.3, 7.5
+        if (params.temperature !== undefined) {
+          requestParams.temperature = params.temperature;
+        }
       }
+
       if (params.topP !== undefined) {
         requestParams.top_p = params.topP;
       }
@@ -478,23 +558,11 @@ export class ClaudeProvider implements LLMProvider {
       }
 
       // Add tools if present
+      const builtInTools = this.getBuiltInTools(params.model);
       if (params.tools && params.tools.length > 0) {
         requestParams.tools = [
           ...toClaudeToolsWithSchema(params.tools),
-          {
-            type: "web_search_20250305",
-            name: "web_search",
-            max_uses: 5,
-          } as unknown as ClaudeToolType,
-          {
-            type: "web_fetch_20260209",
-            name: "web_fetch",
-            allowed_callers: ["direct"],
-          } as unknown as ClaudeToolType,
-          {
-            type: "code_execution_20250825",
-            name: "code_execution",
-          } as unknown as ClaudeToolType,
+          ...builtInTools,
         ];
 
         const toolChoice = toClaudeToolChoice(params.toolChoice);
@@ -502,25 +570,12 @@ export class ClaudeProvider implements LLMProvider {
           requestParams.tool_choice = toolChoice;
         }
       } else {
-        requestParams.tools = [
-          {
-            type: "web_search_20250305",
-            name: "web_search",
-            max_uses: 5,
-          } as unknown as ClaudeToolType,
-          {
-            type: "web_fetch_20260209",
-            name: "web_fetch",
-            allowed_callers: ["direct"],
-          } as unknown as ClaudeToolType,
-          {
-            type: "code_execution_20250825",
-            name: "code_execution",
-          } as unknown as ClaudeToolType,
-        ];
+        requestParams.tools = builtInTools;
       }
 
-      const response = await this.client.messages.create(requestParams);
+      const response = await this.client.messages.create(
+        requestParams as unknown as Anthropic.MessageCreateParamsNonStreaming
+      ) as AnthropicMessage;
 
       // Extract content and tool calls
       const textContent = extractTextContent(response.content);
@@ -532,12 +587,15 @@ export class ClaudeProvider implements LLMProvider {
 
       return {
         content: textContent,
+        reasoning: params.thinkingEnabled ? extractThinkingContent(response.content) : undefined,
         toolCalls,
         finishReason: mapStopReason(response.stop_reason),
         usage: {
           promptTokens: response.usage.input_tokens,
           completionTokens: response.usage.output_tokens,
         },
+        // Preserve raw content blocks for multi-turn thinking (signatures)
+        rawAssistantParts: params.thinkingEnabled ? response.content : undefined,
       };
     } catch (error) {
       throw translateError(error);
@@ -556,11 +614,15 @@ export class ClaudeProvider implements LLMProvider {
       const systemMessage = extractSystemMessages(params.messages);
       const messages = translateMessages(params.messages);
 
-      // Build request parameters (without stream property for the stream method)
-      const requestParams: Anthropic.MessageCreateParamsNonStreaming = {
+      // Build request parameters
+      const effectiveMaxTokens = params.thinkingEnabled && this.isHaikuModel(params.model)
+        ? Math.max(params.maxTokens || 16384, 16384)
+        : params.maxTokens || 4096;
+
+      const requestParams: Record<string, unknown> = {
         model: params.model,
         messages: messages,
-        max_tokens: params.maxTokens || 4096,
+        max_tokens: effectiveMaxTokens,
       };
 
       // Add system message if present
@@ -569,11 +631,23 @@ export class ClaudeProvider implements LLMProvider {
         requestParams.system = systemMessage;
       }
 
-      // Add generation parameters
-      // @see Requirements 7.1, 7.3, 7.5
-      if (params.temperature !== undefined) {
-        requestParams.temperature = params.temperature;
+      // Add thinking configuration when enabled
+      if (params.thinkingEnabled) {
+        if (this.isHaikuModel(params.model)) {
+          requestParams.thinking = {
+            type: "enabled",
+            budget_tokens: Math.max(effectiveMaxTokens - 1024, 1024),
+          };
+        } else {
+          requestParams.thinking = { type: "adaptive" };
+        }
+      } else {
+        // @see Requirements 7.1, 7.3, 7.5
+        if (params.temperature !== undefined) {
+          requestParams.temperature = params.temperature;
+        }
       }
+
       if (params.topP !== undefined) {
         requestParams.top_p = params.topP;
       }
@@ -582,23 +656,11 @@ export class ClaudeProvider implements LLMProvider {
       }
 
       // Add tools if present
+      const builtInTools = this.getBuiltInTools(params.model);
       if (params.tools && params.tools.length > 0) {
         requestParams.tools = [
           ...toClaudeToolsWithSchema(params.tools),
-          {
-            type: "web_search_20250305",
-            name: "web_search",
-            max_uses: 5,
-          } as unknown as ClaudeToolType,
-          {
-            type: "web_fetch_20260209",
-            name: "web_fetch",
-            allowed_callers: ["direct"],
-          } as unknown as ClaudeToolType,
-          {
-            type: "code_execution_20250825",
-            name: "code_execution",
-          } as unknown as ClaudeToolType,
+          ...builtInTools,
         ];
 
         const toolChoice = toClaudeToolChoice(params.toolChoice);
@@ -606,25 +668,12 @@ export class ClaudeProvider implements LLMProvider {
           requestParams.tool_choice = toolChoice;
         }
       } else {
-        requestParams.tools = [
-          {
-            type: "web_search_20250305",
-            name: "web_search",
-            max_uses: 5,
-          } as unknown as ClaudeToolType,
-          {
-            type: "web_fetch_20260209",
-            name: "web_fetch",
-            allowed_callers: ["direct"],
-          } as unknown as ClaudeToolType,
-          {
-            type: "code_execution_20250825",
-            name: "code_execution",
-          } as unknown as ClaudeToolType,
-        ];
+        requestParams.tools = builtInTools;
       }
 
-      const stream = this.client.messages.stream(requestParams);
+      const stream = this.client.messages.stream(
+        requestParams as unknown as Anthropic.MessageCreateParamsNonStreaming
+      );
 
       // Track accumulated tool calls for streaming
       const toolCallsInProgress: Map<
@@ -636,6 +685,9 @@ export class ClaudeProvider implements LLMProvider {
         }
       > = new Map();
 
+      // Accumulate content blocks for rawAssistantParts (thinking preservation)
+      const accumulatedBlocks: ContentBlock[] = [];
+
       let inputTokens = 0;
       let outputTokens = 0;
 
@@ -644,6 +696,11 @@ export class ClaudeProvider implements LLMProvider {
           event as RawMessageStreamEvent,
           toolCallsInProgress
         );
+
+        // Accumulate content blocks for multi-turn thinking
+        if (params.thinkingEnabled && event.type === "content_block_start") {
+          accumulatedBlocks.push(event.content_block as unknown as ContentBlock);
+        }
 
         // Track usage from message_start event
         if (
@@ -669,7 +726,7 @@ export class ClaudeProvider implements LLMProvider {
           yield chunk;
         }
 
-        // Handle message_stop to yield final chunk with usage
+        // Handle message_stop to yield final chunk with usage and raw parts
         if (event.type === "message_stop") {
           yield {
             finishReason: "stop",
@@ -677,6 +734,9 @@ export class ClaudeProvider implements LLMProvider {
               promptTokens: inputTokens,
               completionTokens: outputTokens,
             },
+            rawAssistantParts: params.thinkingEnabled && accumulatedBlocks.length > 0
+              ? accumulatedBlocks
+              : undefined,
           };
         }
       }
@@ -716,6 +776,9 @@ export class ClaudeProvider implements LLMProvider {
         const delta = event.delta;
         if (delta.type === "text_delta") {
           return { content: delta.text };
+        }
+        if ((delta as { type: string }).type === "thinking_delta") {
+          return { reasoning: (delta as unknown as { thinking: string }).thinking };
         }
         if (delta.type === "input_json_delta") {
           const toolCall = toolCallsInProgress.get(event.index);

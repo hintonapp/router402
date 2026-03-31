@@ -200,13 +200,26 @@ async function handleStreamingResponse(
   walletAddress?: string,
   mcpWalletAddress?: string
 ): Promise<void> {
-  // Set SSE headers (Requirement 6.1)
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
+  // Defer SSE headers until the first chunk arrives.
+  // If the provider errors before any chunks (e.g. overloaded), we can still
+  // return a proper HTTP status code instead of a 200 with an SSE error event.
+  let headersWritten = false;
 
-  // Disable response buffering for real-time streaming
-  res.flushHeaders();
+  function ensureSSEHeaders() {
+    if (headersWritten) return;
+    headersWritten = true;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    // Disable TCP Nagle's algorithm to prevent batching small chunks
+    res.socket?.setNoDelay(true);
+
+    // Flush headers to start streaming
+    res.flushHeaders();
+  }
 
   try {
     let finalUsage:
@@ -215,6 +228,8 @@ async function handleStreamingResponse(
 
     // Stream chunks from the chat service (Requirements 6.2, 6.3)
     for await (const chunk of chatService.stream(request, mcpWalletAddress)) {
+      ensureSSEHeaders();
+
       // Capture usage from final chunk
       if (chunk.usage) {
         finalUsage = chunk.usage;
@@ -223,6 +238,9 @@ async function handleStreamingResponse(
       // Format as SSE: 'data: {json}\n\n' (Requirement 6.3)
       res.write(`data: ${JSON.stringify(chunk)}\n\n`);
     }
+
+    // If no chunks were yielded, still ensure headers are written
+    ensureSSEHeaders();
 
     // Record usage after streaming completes
     chatLogger.debug("Streaming usage tracking check", {
@@ -269,8 +287,15 @@ async function handleStreamingResponse(
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error) {
-    // Handle streaming errors gracefully
-    await handleStreamingError(res, error);
+    if (!headersWritten) {
+      // Headers not sent yet — return a proper HTTP error response
+      const statusCode = getHttpStatusCode(error);
+      const errorResponse = translateProviderError(error, "unknown");
+      res.status(statusCode).json(errorResponse);
+    } else {
+      // Headers already sent — send error as SSE event
+      await handleStreamingError(res, error);
+    }
   }
 }
 

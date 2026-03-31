@@ -57,6 +57,9 @@ export interface ChatParams {
 
   /** Response format specification */
   responseFormat?: ResponseFormat;
+
+  /** Whether thinking/reasoning mode is enabled (:thinking variant) */
+  thinkingEnabled?: boolean;
 }
 
 // ============================================================================
@@ -70,6 +73,9 @@ export interface ChatParams {
 export interface ChatResponse {
   /** Generated text content, null if only tool calls */
   content: string | null;
+
+  /** Reasoning/thinking content from the model */
+  reasoning?: string | null;
 
   /** Tool calls made by the model */
   toolCalls?: ToolCall[];
@@ -104,6 +110,9 @@ export interface ChatResponse {
 export interface ChatChunk {
   /** Incremental text content */
   content?: string;
+
+  /** Incremental reasoning/thinking content */
+  reasoning?: string;
 
   /** Incremental tool calls */
   toolCalls?: ToolCall[];

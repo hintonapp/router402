@@ -249,6 +249,7 @@ export interface Usage {
 export interface ResponseMessage {
   role: "assistant";
   content: string | null;
+  reasoning?: string | null;
   tool_calls?: ToolCall[];
 }
 
@@ -295,6 +296,7 @@ export interface ChatCompletionResponse {
 export interface ChunkDelta {
   role?: "assistant";
   content?: string;
+  reasoning?: string;
   tool_calls?: ToolCall[];
 }
 

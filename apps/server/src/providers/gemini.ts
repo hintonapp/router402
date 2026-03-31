@@ -389,7 +389,7 @@ function mapFinishReason(
  * @param parts - Array of Gemini parts
  * @returns Concatenated text content or null
  */
-function extractTextContent(parts: Part[]): string | null {
+function extractTextContent(parts: Part[], excludeThoughts = false): string | null {
   if (!parts || parts.length === 0) {
     return null;
   }
@@ -397,6 +397,9 @@ function extractTextContent(parts: Part[]): string | null {
   const textParts: string[] = [];
 
   for (const part of parts) {
+    if (excludeThoughts && (part as unknown as Record<string, unknown>).thought === true) {
+      continue;
+    }
     if (
       "text" in part &&
       typeof part.text === "string" &&
@@ -411,6 +414,21 @@ function extractTextContent(parts: Part[]): string | null {
   }
 
   return textParts.join("");
+}
+
+/**
+ * Extracts thinking/thought content from Gemini parts.
+ * Thought parts have a `thought: true` flag.
+ */
+function extractGeminiThoughts(parts: Part[]): string | null {
+  const thoughtParts = parts.filter(
+    (part) => (part as unknown as Record<string, unknown>).thought === true
+  );
+  if (thoughtParts.length === 0) return null;
+  return thoughtParts
+    .map((part) => (part as unknown as Record<string, unknown>).text as string)
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**
@@ -548,6 +566,14 @@ export class GeminiProvider implements LLMProvider {
         generationConfig.stopSequences = params.stop;
       }
 
+      // Add thinking configuration when enabled (not in SDK types, cast needed)
+      if (params.thinkingEnabled) {
+        (generationConfig as Record<string, unknown>).thinkingConfig = {
+          thinkingLevel: "high",
+          includeThoughts: true,
+        };
+      }
+
       // Build tools configuration
       let tools: FunctionDeclarationsTool[] | undefined;
       let toolConfig: ToolConfig | undefined;
@@ -606,19 +632,24 @@ export class GeminiProvider implements LLMProvider {
         );
       }
 
-      // Extract content - try response.text() first, then fall back to parts extraction
+      // Extract content and reasoning from parts
+      const parts = candidate.content?.parts || [];
+
       let textContent: string | null = null;
-      try {
-        const text = response.text();
-        textContent = text || null;
-      } catch {
-        // If response.text() fails (e.g., for tool calls), extract from parts
-        const parts = candidate.content?.parts || [];
-        textContent = extractTextContent(parts);
+      if (params.thinkingEnabled) {
+        // When thinking is enabled, separate thoughts from content
+        textContent = extractTextContent(parts, true);
+      } else {
+        // Try response.text() first, then fall back to parts extraction
+        try {
+          const text = response.text();
+          textContent = text || null;
+        } catch {
+          textContent = extractTextContent(parts);
+        }
       }
 
       // Extract tool calls from parts
-      const parts = candidate.content?.parts || [];
       const functionCalls = extractFunctionCalls(parts);
       const toolCalls =
         functionCalls.length > 0
@@ -633,6 +664,7 @@ export class GeminiProvider implements LLMProvider {
 
       return {
         content: textContent,
+        reasoning: params.thinkingEnabled ? extractGeminiThoughts(parts) : undefined,
         toolCalls,
         finishReason:
           toolCalls && toolCalls.length > 0 ? "tool_calls" : finishReason,
@@ -681,6 +713,14 @@ export class GeminiProvider implements LLMProvider {
       }
       if (params.stop !== undefined && params.stop.length > 0) {
         generationConfig.stopSequences = params.stop;
+      }
+
+      // Add thinking configuration when enabled (not in SDK types, cast needed)
+      if (params.thinkingEnabled) {
+        (generationConfig as Record<string, unknown>).thinkingConfig = {
+          thinkingLevel: "high",
+          includeThoughts: true,
+        };
       }
 
       // Build tools configuration
@@ -746,8 +786,16 @@ export class GeminiProvider implements LLMProvider {
           // Accumulate all parts for rawAssistantParts (thoughtSignature preservation)
           allParts.push(...parts);
 
-          // Extract text content
-          const textContent = extractTextContent(parts);
+          // Extract thinking/reasoning content when enabled
+          if (params.thinkingEnabled) {
+            const thoughtText = extractGeminiThoughts(parts);
+            if (thoughtText) {
+              yield { reasoning: thoughtText };
+            }
+          }
+
+          // Extract text content (exclude thoughts when thinking is enabled)
+          const textContent = extractTextContent(parts, params.thinkingEnabled);
           if (textContent) {
             yield { content: textContent };
           }

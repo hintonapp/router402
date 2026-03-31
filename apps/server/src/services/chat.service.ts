@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { getChainConfig } from "../config/chain.js";
 import { getConfig } from "../config/index.js";
 import type { ChatChunk, ChatParams, ChatResponse } from "../providers/base.js";
-import { getProvider } from "../providers/index.js";
+import { getProvider, parseModelVariant, type ParsedModel } from "../providers/index.js";
 import type {
   ChatCompletionChunk,
   ChatCompletionRequest,
@@ -150,12 +150,12 @@ export class ChatService {
     request: ChatCompletionRequest,
     walletAddress?: string
   ): Promise<ChatCompletionResponse> {
-    const model = this.getModelFromRequest(request);
-    const { provider, modelId } = getProvider(model);
+    const parsed = this.parseModel(request);
+    const { provider, modelId } = getProvider(parsed.baseModel);
 
     const hasLifiPlugin = this.hasPlugin(request, "lifi");
 
-    const params = this.buildParams(request, modelId);
+    const params = this.buildParams(request, modelId, parsed.thinkingEnabled);
 
     // Only include MCP tools and system prompt when the lifi plugin is active
     if (hasLifiPlugin) {
@@ -223,7 +223,7 @@ export class ChatService {
     }
 
     response.usage = totalUsage;
-    return this.formatResponse(model, response);
+    return this.formatResponse(request.model!, response);
   }
 
   /**
@@ -246,12 +246,12 @@ export class ChatService {
     request: ChatCompletionRequest,
     walletAddress?: string
   ): AsyncGenerator<ChatCompletionChunk> {
-    const model = this.getModelFromRequest(request);
-    const { provider, modelId } = getProvider(model);
+    const parsed = this.parseModel(request);
+    const { provider, modelId } = getProvider(parsed.baseModel);
 
     const hasLifiPlugin = this.hasPlugin(request, "lifi");
 
-    const params = this.buildParams(request, modelId);
+    const params = this.buildParams(request, modelId, parsed.thinkingEnabled);
 
     // Only include MCP tools and system prompt when the lifi plugin is active
     if (hasLifiPlugin) {
@@ -289,7 +289,7 @@ export class ChatService {
           rawAssistantParts = chunk.rawAssistantParts;
         }
 
-        yield this.formatChunk(model, chunk, responseId, created);
+        yield this.formatChunk(request.model!, chunk, responseId, created);
       }
 
       // After stream ends, check if we need to execute MCP tools
@@ -447,17 +447,18 @@ export class ChatService {
   }
 
   /**
-   * Extract and validate the model from the request.
+   * Parse and validate the model from the request, handling :thinking variant.
    *
    * @param request - The chat completion request
-   * @returns The model identifier
+   * @returns Parsed model info with base model, provider model ID, and thinking flag
    * @throws {Error} If model is not specified
+   * @throws {UnsupportedModelError} If model is not supported
    */
-  private getModelFromRequest(request: ChatCompletionRequest): string {
+  private parseModel(request: ChatCompletionRequest): ParsedModel {
     if (!request.model) {
       throw new Error("Model is required for chat completion requests");
     }
-    return request.model;
+    return parseModelVariant(request.model);
   }
 
   /**
@@ -479,7 +480,8 @@ export class ChatService {
    */
   private buildParams(
     request: ChatCompletionRequest,
-    modelId: string
+    modelId: string,
+    thinkingEnabled?: boolean
   ): ChatParams {
     return {
       messages: request.messages,
@@ -492,6 +494,7 @@ export class ChatService {
       tools: request.tools,
       toolChoice: request.tool_choice,
       responseFormat: request.response_format,
+      thinkingEnabled,
     };
   }
 
@@ -529,6 +532,7 @@ export class ChatService {
           message: {
             role: "assistant",
             content: response.content,
+            ...(response.reasoning ? { reasoning: response.reasoning } : {}),
             ...(response.toolCalls && response.toolCalls.length > 0
               ? { tool_calls: response.toolCalls }
               : {}),
@@ -564,8 +568,13 @@ export class ChatService {
     const delta: ChunkDelta = {};
 
     // Include role in first chunk (when content starts)
-    if (chunk.content !== undefined || chunk.toolCalls !== undefined) {
+    if (chunk.content !== undefined || chunk.toolCalls !== undefined || chunk.reasoning !== undefined) {
       delta.role = "assistant";
+    }
+
+    // Include reasoning if present
+    if (chunk.reasoning !== undefined) {
+      delta.reasoning = chunk.reasoning;
     }
 
     // Include content if present
