@@ -500,8 +500,14 @@ export class ChatService {
     thinkingEnabled?: boolean,
     webSearchEnabled?: boolean
   ): ChatParams {
+    const systemPrompt: Message = {
+      role: "system",
+      content:
+        "Always respond in the same language the user writes in, unless they explicitly request otherwise.",
+    };
+
     return {
-      messages: request.messages,
+      messages: [systemPrompt, ...request.messages],
       model: modelId,
       temperature: request.temperature,
       maxTokens: request.max_tokens,
