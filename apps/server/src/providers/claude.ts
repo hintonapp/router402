@@ -478,6 +478,14 @@ export class ClaudeProvider implements LLMProvider {
     return model.includes("haiku");
   }
 
+  /**
+   * Check if the model only supports adaptive thinking (no manual/enabled mode).
+   * For these models, adaptive thinking is always sent regardless of thinkingEnabled.
+   */
+  private isAdaptiveOnlyModel(model: string): boolean {
+    return model === "claude-opus-4-7";
+  }
+
   private getBuiltInTools(model: string): ClaudeToolType[] {
     const webFetchTool = this.isHaikuModel(model)
       ? {
@@ -513,6 +521,9 @@ export class ClaudeProvider implements LLMProvider {
       const messages = translateMessages(params.messages);
 
       // Build request parameters
+      const forceAdaptive = this.isAdaptiveOnlyModel(params.model);
+      const thinkingActive = params.thinkingEnabled || forceAdaptive;
+
       const effectiveMaxTokens =
         params.thinkingEnabled && this.isHaikuModel(params.model)
           ? Math.max(params.maxTokens || 16384, 16384)
@@ -530,8 +541,8 @@ export class ClaudeProvider implements LLMProvider {
         requestParams.system = systemMessage;
       }
 
-      // Add thinking configuration when enabled
-      if (params.thinkingEnabled) {
+      // Add thinking configuration when enabled or forced (adaptive-only models)
+      if (thinkingActive) {
         if (this.isHaikuModel(params.model)) {
           // Haiku only supports "enabled" with explicit budget_tokens
           requestParams.thinking = {
@@ -539,10 +550,10 @@ export class ClaudeProvider implements LLMProvider {
             budget_tokens: Math.max(effectiveMaxTokens - 1024, 1024),
           };
         } else {
-          // Opus and Sonnet support "adaptive" (not in SDK types yet)
+          // Opus 4.7 only supports adaptive; Opus 4.6 and Sonnet 4.6 also use adaptive
           requestParams.thinking = { type: "adaptive" };
         }
-        // Temperature must not be set when thinking is enabled
+        // Temperature must not be set when thinking is active
       } else {
         // Add generation parameters only when thinking is disabled
         // @see Requirements 7.1, 7.3, 7.5
@@ -590,7 +601,7 @@ export class ClaudeProvider implements LLMProvider {
 
       return {
         content: textContent,
-        reasoning: params.thinkingEnabled
+        reasoning: thinkingActive
           ? extractThinkingContent(response.content)
           : undefined,
         toolCalls,
@@ -600,9 +611,7 @@ export class ClaudeProvider implements LLMProvider {
           completionTokens: response.usage.output_tokens,
         },
         // Preserve raw content blocks for multi-turn thinking (signatures)
-        rawAssistantParts: params.thinkingEnabled
-          ? response.content
-          : undefined,
+        rawAssistantParts: thinkingActive ? response.content : undefined,
       };
     } catch (error) {
       throw translateError(error);
@@ -622,6 +631,9 @@ export class ClaudeProvider implements LLMProvider {
       const messages = translateMessages(params.messages);
 
       // Build request parameters
+      const forceAdaptive = this.isAdaptiveOnlyModel(params.model);
+      const thinkingActive = params.thinkingEnabled || forceAdaptive;
+
       const effectiveMaxTokens =
         params.thinkingEnabled && this.isHaikuModel(params.model)
           ? Math.max(params.maxTokens || 16384, 16384)
@@ -639,8 +651,8 @@ export class ClaudeProvider implements LLMProvider {
         requestParams.system = systemMessage;
       }
 
-      // Add thinking configuration when enabled
-      if (params.thinkingEnabled) {
+      // Add thinking configuration when enabled or forced (adaptive-only models)
+      if (thinkingActive) {
         if (this.isHaikuModel(params.model)) {
           requestParams.thinking = {
             type: "enabled",
@@ -708,7 +720,7 @@ export class ClaudeProvider implements LLMProvider {
         );
 
         // Accumulate content blocks for multi-turn thinking
-        if (params.thinkingEnabled && event.type === "content_block_start") {
+        if (thinkingActive && event.type === "content_block_start") {
           accumulatedBlocks.push(
             event.content_block as unknown as ContentBlock
           );
@@ -747,7 +759,7 @@ export class ClaudeProvider implements LLMProvider {
               completionTokens: outputTokens,
             },
             rawAssistantParts:
-              params.thinkingEnabled && accumulatedBlocks.length > 0
+              thinkingActive && accumulatedBlocks.length > 0
                 ? accumulatedBlocks
                 : undefined,
           };

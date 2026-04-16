@@ -44,13 +44,13 @@ export type Provider = keyof typeof MODEL_REGISTRY;
 
 export const MODEL_REGISTRY = {
   anthropic: {
-    "anthropic/claude-opus-4.6": {
-      name: "Claude Opus 4.6",
-      providerId: "claude-opus-4-6",
+    "anthropic/claude-opus-4.7": {
+      name: "Claude Opus 4.7",
+      providerId: "claude-opus-4-7",
       pricing: { input: 5.0, output: 25.0 },
-      features: ["thinking", "web_search"],
+      features: ["web_search"],
     },
-    "anthropic/claude-sonnet-4.6": {
+"anthropic/claude-sonnet-4.6": {
       name: "Claude Sonnet 4.6",
       providerId: "claude-sonnet-4-6",
       pricing: { input: 3.0, output: 15.0 },
