@@ -97,6 +97,20 @@ export const MODEL_REGISTRY = {
       features: ["thinking", "web_search"],
     },
   },
+  kimi: {
+    "moonshotai/kimi-k2.5": {
+      name: "Kimi K2.5",
+      providerId: "kimi-k2.5",
+      pricing: { input: 0.6, output: 3.0 },
+      features: ["thinking", "web_search"],
+    },
+    "moonshotai/kimi-k2-thinking": {
+      name: "Kimi K2 Thinking",
+      providerId: "kimi-k2-thinking",
+      pricing: { input: 0.6, output: 2.5 },
+      features: ["web_search"],
+    },
+  },
 } as const satisfies Record<string, Record<string, ModelDefinition>>;
 
 // ============================================================================
@@ -116,7 +130,13 @@ type GoogleModelId =
   (typeof MODEL_REGISTRY)["google"][keyof (typeof MODEL_REGISTRY)["google"]]["providerId"];
 type QwenModelId =
   (typeof MODEL_REGISTRY)["qwen"][keyof (typeof MODEL_REGISTRY)["qwen"]]["providerId"];
-export type ProviderModelId = AnthropicModelId | GoogleModelId | QwenModelId;
+type KimiModelId =
+  (typeof MODEL_REGISTRY)["kimi"][keyof (typeof MODEL_REGISTRY)["kimi"]]["providerId"];
+export type ProviderModelId =
+  | AnthropicModelId
+  | GoogleModelId
+  | QwenModelId
+  | KimiModelId;
 
 // ============================================================================
 // Derived Flat Maps (for fast lookups)

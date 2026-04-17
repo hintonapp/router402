@@ -112,6 +112,17 @@ export const configSchema = z.object({
   DASHSCOPE_BASE_URL: z
     .url()
     .default("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+
+  /**
+   * Moonshot AI API key (for Kimi models)
+   */
+  MOONSHOT_API_KEY: z.string().min(1, "MOONSHOT_API_KEY is required"),
+
+  /**
+   * Moonshot OpenAI-compatible base URL.
+   * Defaults to the global endpoint.
+   */
+  MOONSHOT_BASE_URL: z.url().default("https://api.moonshot.ai/v1"),
 });
 
 /**

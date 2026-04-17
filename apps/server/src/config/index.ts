@@ -29,6 +29,8 @@ export function loadConfig(): Config {
       WALLET_CONNECT_PROJECT_ID: process.env.WALLET_CONNECT_PROJECT_ID,
       DASHSCOPE_API_KEY: process.env.DASHSCOPE_API_KEY,
       DASHSCOPE_BASE_URL: process.env.DASHSCOPE_BASE_URL,
+      MOONSHOT_API_KEY: process.env.MOONSHOT_API_KEY,
+      MOONSHOT_BASE_URL: process.env.MOONSHOT_BASE_URL,
     });
 
     configLogger.info("Configuration loaded successfully");
