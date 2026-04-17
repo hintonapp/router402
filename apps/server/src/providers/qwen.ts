@@ -8,7 +8,10 @@
  * @module providers/qwen
  */
 
+import { logger } from "@router402/utils";
 import { getConfig } from "../config/index.js";
+
+const qwenLogger = logger.context("QwenProvider");
 import type {
   ContentPart,
   FinishReason,
@@ -258,19 +261,33 @@ export class QwenProvider implements LLMProvider {
 
   async *chatStream(params: ChatParams): AsyncGenerator<ChatChunk> {
     let response: Response;
+    let requestBody: Record<string, unknown>;
     try {
-      const body = this.buildRequestBody(params, true);
+      requestBody = this.buildRequestBody(params, true);
+      qwenLogger.debug("DashScope stream request", {
+        model: requestBody.model,
+        enable_thinking: requestBody.enable_thinking,
+        enable_search: requestBody.enable_search,
+        search_options: requestBody.search_options,
+      });
       response = await fetch(this.endpoint(), {
         method: "POST",
         headers: this.headers(),
-        body: JSON.stringify(body),
+        body: JSON.stringify(requestBody),
       });
     } catch (error) {
+      qwenLogger.error("DashScope fetch failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw translateThrown(error);
     }
 
     if (!response.ok) {
       const text = await response.text();
+      qwenLogger.error("DashScope returned non-OK", {
+        status: response.status,
+        body: text.slice(0, 500),
+      });
       throw translateHttpError(response.status, text);
     }
 
@@ -289,13 +306,27 @@ export class QwenProvider implements LLMProvider {
     let lastFinishReason: FinishReason | undefined;
     let finalUsage: QwenUsage | undefined;
 
+    let eventCount = 0;
+    let firstEventLogged = false;
     try {
       for await (const event of parseSse(response.body)) {
+        eventCount += 1;
+        if (!firstEventLogged) {
+          qwenLogger.debug("DashScope first SSE event", {
+            event: event.slice(0, 400),
+          });
+          firstEventLogged = true;
+        }
         if (event === "[DONE]") break;
         let chunk: QwenStreamChunk;
         try {
           chunk = JSON.parse(event) as QwenStreamChunk;
-        } catch {
+        } catch (parseErr) {
+          qwenLogger.warn("DashScope SSE JSON parse failed", {
+            event: event.slice(0, 200),
+            error:
+              parseErr instanceof Error ? parseErr.message : String(parseErr),
+          });
           continue;
         }
 
@@ -351,6 +382,15 @@ export class QwenProvider implements LLMProvider {
         yield { toolCalls };
       }
 
+      qwenLogger.debug("DashScope stream complete", {
+        model: requestBody.model,
+        eventCount,
+        finishReason: lastFinishReason,
+        promptTokens: finalUsage?.prompt_tokens,
+        completionTokens: finalUsage?.completion_tokens,
+        toolCallCount: toolCallsInProgress.size,
+      });
+
       yield {
         finishReason: lastFinishReason ?? "stop",
         usage: {
@@ -359,6 +399,10 @@ export class QwenProvider implements LLMProvider {
         },
       };
     } catch (error) {
+      qwenLogger.error("DashScope stream iteration failed", {
+        error: error instanceof Error ? error.message : String(error),
+        eventCount,
+      });
       throw translateThrown(error);
     }
   }
@@ -408,10 +452,10 @@ export class QwenProvider implements LLMProvider {
       body.enable_thinking = params.thinkingEnabled;
     }
 
-    // Web search: qwen3-max, qwen3.5-plus, qwen3.5-flash only accept the
-    // "agent" strategy (non-thinking mode for qwen3-max) — the default "turbo"
-    // is not supported on these models, so enable_search alone is a no-op.
-    // search_strategy must live inside the search_options object.
+    // DashScope only documents "agent" as a valid search_strategy; omitting it
+    // is undocumented behaviour and appears to be a no-op. The "agent" strategy
+    // is inherently multi-step (search + LLM called multiple times) so expect
+    // 30-60s latencies when web search is enabled.
     if (params.webSearchEnabled) {
       body.enable_search = true;
       body.search_options = { search_strategy: "agent" };
