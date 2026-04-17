@@ -408,8 +408,13 @@ export class QwenProvider implements LLMProvider {
       body.enable_thinking = params.thinkingEnabled;
     }
 
+    // Web search: qwen3-max, qwen3.5-plus, qwen3.5-flash only accept the
+    // "agent" strategy (non-thinking mode for qwen3-max) — the default "turbo"
+    // is not supported on these models, so enable_search alone is a no-op.
+    // search_strategy must live inside the search_options object.
     if (params.webSearchEnabled) {
       body.enable_search = true;
+      body.search_options = { search_strategy: "agent" };
     }
 
     if (stream) {
