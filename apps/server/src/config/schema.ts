@@ -99,6 +99,19 @@ export const configSchema = z.object({
    * Pimlico API Key for account abstraction
    */
   PIMLICO_API_KEY: z.string().min(1, "PIMLICO_API_KEY is required"),
+
+  /**
+   * Alibaba Cloud DashScope API key (for Qwen models)
+   */
+  DASHSCOPE_API_KEY: z.string().min(1, "DASHSCOPE_API_KEY is required"),
+
+  /**
+   * DashScope OpenAI-compatible base URL.
+   * Defaults to the Singapore region.
+   */
+  DASHSCOPE_BASE_URL: z
+    .url()
+    .default("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
 });
 
 /**

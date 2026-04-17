@@ -27,6 +27,8 @@ export function loadConfig(): Config {
       JWT_SECRET: process.env.JWT_SECRET,
       PIMLICO_API_KEY: process.env.PIMLICO_API_KEY,
       WALLET_CONNECT_PROJECT_ID: process.env.WALLET_CONNECT_PROJECT_ID,
+      DASHSCOPE_API_KEY: process.env.DASHSCOPE_API_KEY,
+      DASHSCOPE_BASE_URL: process.env.DASHSCOPE_BASE_URL,
     });
 
     configLogger.info("Configuration loaded successfully");

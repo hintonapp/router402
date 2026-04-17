@@ -24,6 +24,7 @@ import type { LLMProvider } from "./base.js";
 import { UnsupportedModelError } from "./base.js";
 import { ClaudeProvider } from "./claude.js";
 import { GeminiProvider } from "./gemini.js";
+import { QwenProvider } from "./qwen.js";
 
 // ============================================================================
 // Re-exports from registry
@@ -162,6 +163,10 @@ export function getProvider(model: string): ProviderResult {
     return { provider: new GeminiProvider(), modelId };
   }
 
+  if (providerName === "qwen") {
+    return { provider: new QwenProvider(), modelId };
+  }
+
   throw new UnknownProviderError(model);
 }
 
@@ -184,6 +189,6 @@ export function getProviderModelId(model: string): string | undefined {
  */
 export function getProviderName(
   model: string
-): "anthropic" | "google" | undefined {
+): "anthropic" | "google" | "qwen" | undefined {
   return registryGetProviderName(model);
 }

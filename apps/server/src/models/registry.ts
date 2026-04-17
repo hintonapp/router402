@@ -50,7 +50,7 @@ export const MODEL_REGISTRY = {
       pricing: { input: 5.0, output: 25.0 },
       features: ["web_search"],
     },
-"anthropic/claude-sonnet-4.6": {
+    "anthropic/claude-sonnet-4.6": {
       name: "Claude Sonnet 4.6",
       providerId: "claude-sonnet-4-6",
       pricing: { input: 3.0, output: 15.0 },
@@ -77,6 +77,26 @@ export const MODEL_REGISTRY = {
       features: ["thinking", "web_search"],
     },
   },
+  qwen: {
+    "qwen/qwen3-max": {
+      name: "Qwen3 Max",
+      providerId: "qwen3-max",
+      pricing: { input: 1.2, output: 6.0 },
+      features: ["thinking", "web_search"],
+    },
+    "qwen/qwen3.5-plus": {
+      name: "Qwen3.5 Plus",
+      providerId: "qwen3.5-plus",
+      pricing: { input: 0.4, output: 2.4 },
+      features: ["thinking", "web_search"],
+    },
+    "qwen/qwen3.5-flash": {
+      name: "Qwen3.5 Flash",
+      providerId: "qwen3.5-flash",
+      pricing: { input: 0.1, output: 0.4 },
+      features: ["thinking", "web_search"],
+    },
+  },
 } as const satisfies Record<string, Record<string, ModelDefinition>>;
 
 // ============================================================================
@@ -94,7 +114,9 @@ type AnthropicModelId =
   (typeof MODEL_REGISTRY)["anthropic"][keyof (typeof MODEL_REGISTRY)["anthropic"]]["providerId"];
 type GoogleModelId =
   (typeof MODEL_REGISTRY)["google"][keyof (typeof MODEL_REGISTRY)["google"]]["providerId"];
-export type ProviderModelId = AnthropicModelId | GoogleModelId;
+type QwenModelId =
+  (typeof MODEL_REGISTRY)["qwen"][keyof (typeof MODEL_REGISTRY)["qwen"]]["providerId"];
+export type ProviderModelId = AnthropicModelId | GoogleModelId | QwenModelId;
 
 // ============================================================================
 // Derived Flat Maps (for fast lookups)
