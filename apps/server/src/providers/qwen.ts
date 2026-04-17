@@ -10,8 +10,6 @@
 
 import { logger } from "@router402/utils";
 import { getConfig } from "../config/index.js";
-
-const qwenLogger = logger.context("QwenProvider");
 import type {
   ContentPart,
   FinishReason,
@@ -33,6 +31,7 @@ import {
   RateLimitError,
 } from "./base.js";
 
+const qwenLogger = logger.context("QwenProvider");
 const PROVIDER_NAME = "qwen";
 
 // ============================================================================
@@ -122,7 +121,22 @@ function flattenContent(content: string | ContentPart[] | null): string | null {
 }
 
 function translateMessages(messages: Message[]): QwenMessage[] {
-  return messages.map((message): QwenMessage => {
+  // DashScope's agent search path rejects requests with more than one system
+  // message ("The input messages must contain no more than one system message").
+  // Merge every system message into a single leading system message to stay
+  // compatible in both agent and non-agent modes.
+  const systemTexts: string[] = [];
+  const rest: Message[] = [];
+  for (const message of messages) {
+    if (message.role === "system") {
+      const text = flattenContent(message.content);
+      if (text) systemTexts.push(text);
+    } else {
+      rest.push(message);
+    }
+  }
+
+  const translatedRest = rest.map((message): QwenMessage => {
     const base: QwenMessage = {
       role: message.role,
       content: flattenContent(message.content),
@@ -145,6 +159,14 @@ function translateMessages(messages: Message[]): QwenMessage[] {
     }
     return base;
   });
+
+  if (systemTexts.length === 0) return translatedRest;
+
+  const mergedSystem: QwenMessage = {
+    role: "system",
+    content: systemTexts.join("\n\n"),
+  };
+  return [mergedSystem, ...translatedRest];
 }
 
 function translateToolChoice(choice: ToolChoice | undefined): unknown {
@@ -318,9 +340,11 @@ export class QwenProvider implements LLMProvider {
           firstEventLogged = true;
         }
         if (event === "[DONE]") break;
-        let chunk: QwenStreamChunk;
+        let chunk: QwenStreamChunk & {
+          error?: { code?: string; message?: string; type?: string };
+        };
         try {
-          chunk = JSON.parse(event) as QwenStreamChunk;
+          chunk = JSON.parse(event) as typeof chunk;
         } catch (parseErr) {
           qwenLogger.warn("DashScope SSE JSON parse failed", {
             event: event.slice(0, 200),
@@ -328,6 +352,12 @@ export class QwenProvider implements LLMProvider {
               parseErr instanceof Error ? parseErr.message : String(parseErr),
           });
           continue;
+        }
+
+        if (chunk.error) {
+          const errMsg =
+            chunk.error.message ?? chunk.error.code ?? "DashScope stream error";
+          throw new ProviderError(errMsg, 500, chunk.error.type ?? "api_error");
         }
 
         if (chunk.usage) {
