@@ -40,7 +40,7 @@ const PROVIDER_NAME = "qwen";
 
 interface QwenMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
+  content: string | ContentPart[] | null;
   name?: string;
   tool_call_id?: string;
   tool_calls?: QwenToolCall[];
@@ -105,10 +105,38 @@ interface QwenStreamChunk {
 // ============================================================================
 
 /**
- * Flatten OpenRouter content (string or content parts) into plain text.
- * Non-text parts are dropped (the registered Qwen models here are text-only).
+ * Translate OpenRouter content into Qwen's expected content shape.
+ *
+ * Qwen's OpenAI-compatible endpoint accepts multimodal content parts
+ * (text + image_url) on vision-capable models. We preserve the parts array
+ * when images are present; otherwise flatten to a single string. Non-standard
+ * parts are dropped.
  */
-function flattenContent(content: string | ContentPart[] | null): string | null {
+function translateContent(
+  content: string | ContentPart[] | null
+): string | ContentPart[] | null {
+  if (content === null) return null;
+  if (typeof content === "string") return content;
+  const preserved = content.filter(
+    (part) => part.type === "text" || part.type === "image_url"
+  );
+  if (preserved.length === 0) return null;
+  if (preserved.every((part) => part.type === "text")) {
+    const text = preserved
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("");
+    return text.length > 0 ? text : null;
+  }
+  return preserved;
+}
+
+/**
+ * Collapse any content to a string — used for roles (tool, assistant+tool_calls)
+ * that require string content per OpenAI spec.
+ */
+function toStringContent(
+  content: string | ContentPart[] | null
+): string | null {
   if (content === null) return null;
   if (typeof content === "string") return content;
   const text = content
@@ -129,7 +157,7 @@ function translateMessages(messages: Message[]): QwenMessage[] {
   const rest: Message[] = [];
   for (const message of messages) {
     if (message.role === "system") {
-      const text = flattenContent(message.content);
+      const text = toStringContent(message.content);
       if (text) systemTexts.push(text);
     } else {
       rest.push(message);
@@ -137,9 +165,21 @@ function translateMessages(messages: Message[]): QwenMessage[] {
   }
 
   const translatedRest = rest.map((message): QwenMessage => {
+    const isToolRole = message.role === "tool";
+    const hasToolCalls =
+      message.role === "assistant" &&
+      message.tool_calls !== undefined &&
+      message.tool_calls.length > 0;
+
+    const content = isToolRole
+      ? (toStringContent(message.content) ?? "")
+      : hasToolCalls
+        ? toStringContent(message.content)
+        : translateContent(message.content);
+
     const base: QwenMessage = {
       role: message.role,
-      content: flattenContent(message.content),
+      content,
     };
     if (message.name) base.name = message.name;
     if (message.tool_call_id) base.tool_call_id = message.tool_call_id;
@@ -152,10 +192,6 @@ function translateMessages(messages: Message[]): QwenMessage[] {
           arguments: tc.function.arguments,
         },
       }));
-    }
-    // Tool role messages must have string content (not null) per OpenAI spec.
-    if (message.role === "tool" && base.content === null) {
-      base.content = "";
     }
     return base;
   });

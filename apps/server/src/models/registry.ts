@@ -12,7 +12,7 @@
 // Feature Type
 // ============================================================================
 
-export type ModelFeature = "thinking" | "web_search";
+export type ModelFeature = "thinking" | "web_search" | "image_input";
 
 // ============================================================================
 // Model Definition
@@ -48,19 +48,19 @@ export const MODEL_REGISTRY = {
       name: "Claude Opus 4.7",
       providerId: "claude-opus-4-7",
       pricing: { input: 5.0, output: 25.0 },
-      features: ["web_search"],
+      features: ["web_search", "image_input"],
     },
     "anthropic/claude-sonnet-4.6": {
       name: "Claude Sonnet 4.6",
       providerId: "claude-sonnet-4-6",
       pricing: { input: 3.0, output: 15.0 },
-      features: ["thinking", "web_search"],
+      features: ["thinking", "web_search", "image_input"],
     },
     "anthropic/claude-haiku-4.5": {
       name: "Claude Haiku 4.5",
       providerId: "claude-haiku-4-5-20251001",
       pricing: { input: 1.0, output: 5.0 },
-      features: ["thinking", "web_search"],
+      features: ["thinking", "web_search", "image_input"],
     },
   },
   google: {
@@ -68,13 +68,13 @@ export const MODEL_REGISTRY = {
       name: "Gemini 3.1 Pro",
       providerId: "gemini-3.1-pro-preview",
       pricing: { input: 2.0, output: 12.0 },
-      features: ["thinking", "web_search"],
+      features: ["thinking", "web_search", "image_input"],
     },
     "google/gemini-3.1-flash-lite-preview": {
       name: "Gemini 3.1 Flash Lite",
       providerId: "gemini-3.1-flash-lite-preview",
       pricing: { input: 0.25, output: 1.5 },
-      features: ["thinking", "web_search"],
+      features: ["thinking", "web_search", "image_input"],
     },
   },
   qwen: {
@@ -84,17 +84,17 @@ export const MODEL_REGISTRY = {
       pricing: { input: 1.2, output: 6.0 },
       features: ["thinking", "web_search"],
     },
-    "qwen/qwen3.5-plus": {
-      name: "Qwen3.5 Plus",
-      providerId: "qwen3.5-plus",
-      pricing: { input: 0.4, output: 2.4 },
-      features: ["thinking", "web_search"],
+    "qwen/qwen3.6-plus": {
+      name: "Qwen3.6 Plus",
+      providerId: "qwen3.6-plus",
+      pricing: { input: 0.5, output: 3.0 },
+      features: ["thinking", "web_search", "image_input"],
     },
-    "qwen/qwen3.5-flash": {
-      name: "Qwen3.5 Flash",
-      providerId: "qwen3.5-flash",
-      pricing: { input: 0.1, output: 0.4 },
-      features: ["thinking", "web_search"],
+    "qwen/qwen3.6-flash": {
+      name: "Qwen3.6 Flash",
+      providerId: "qwen3.6-flash",
+      pricing: { input: 0.25, output: 1.5 },
+      features: ["thinking", "web_search", "image_input"],
     },
   },
   kimi: {
@@ -102,13 +102,7 @@ export const MODEL_REGISTRY = {
       name: "Kimi K2.5",
       providerId: "kimi-k2.5",
       pricing: { input: 0.6, output: 3.0 },
-      features: ["thinking", "web_search"],
-    },
-    "moonshotai/kimi-k2-thinking": {
-      name: "Kimi K2 Thinking",
-      providerId: "kimi-k2-thinking",
-      pricing: { input: 0.6, output: 2.5 },
-      features: [],
+      features: ["thinking", "web_search", "image_input"],
     },
   },
 } as const satisfies Record<string, Record<string, ModelDefinition>>;

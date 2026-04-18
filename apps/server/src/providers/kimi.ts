@@ -6,8 +6,7 @@
  * fetch (no extra SDK): POST JSON for non-streaming, parse SSE for streaming.
  *
  * Thinking: toggled via `thinking: { type: "enabled" | "disabled" }` on the
- * request body. `kimi-k2.5` respects the toggle; `kimi-k2-thinking` forces
- * thinking on regardless, so we omit the field for that model.
+ * request body.
  *
  * Web search: exposed via a builtin tool `$web_search`. The model emits a
  * tool_calls response; the client must echo the arguments back as a tool
@@ -46,7 +45,6 @@ const PROVIDER_NAME = "kimi";
 
 const WEB_SEARCH_TOOL_NAME = "$web_search";
 const MAX_WEB_SEARCH_ROUNDS = 5;
-const THINKING_MODEL_ID = "kimi-k2-thinking";
 
 // ============================================================================
 // Moonshot Request / Response Shapes (OpenAI-compatible)
@@ -54,7 +52,7 @@ const THINKING_MODEL_ID = "kimi-k2-thinking";
 
 interface KimiMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
+  content: string | ContentPart[] | null;
   name?: string;
   tool_call_id?: string;
   tool_calls?: KimiToolCall[];
@@ -118,7 +116,38 @@ interface KimiStreamChunk {
 // Translation Helpers
 // ============================================================================
 
-function flattenContent(content: string | ContentPart[] | null): string | null {
+/**
+ * Translate OpenRouter content into Kimi's expected content shape.
+ *
+ * Kimi K2.5 is natively multimodal (text + image_url). We preserve content
+ * parts when images are present; when only text parts exist we flatten to a
+ * single string. Non-standard part types are dropped.
+ */
+function translateContent(
+  content: string | ContentPart[] | null
+): string | ContentPart[] | null {
+  if (content === null) return null;
+  if (typeof content === "string") return content;
+  const preserved = content.filter(
+    (part) => part.type === "text" || part.type === "image_url"
+  );
+  if (preserved.length === 0) return null;
+  if (preserved.every((part) => part.type === "text")) {
+    const text = preserved
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("");
+    return text.length > 0 ? text : null;
+  }
+  return preserved;
+}
+
+/**
+ * Collapse any content to a string — used for roles (tool, assistant+tool_calls)
+ * that require string content per OpenAI spec.
+ */
+function toStringContent(
+  content: string | ContentPart[] | null
+): string | null {
   if (content === null) return null;
   if (typeof content === "string") return content;
   const text = content
@@ -132,9 +161,23 @@ function flattenContent(content: string | ContentPart[] | null): string | null {
 
 function translateMessages(messages: Message[]): KimiMessage[] {
   return messages.map((message): KimiMessage => {
+    // Tool-role and assistant-with-tool-calls messages must have string content
+    // per OpenAI spec. Only user/system messages carry multimodal parts today.
+    const isToolRole = message.role === "tool";
+    const hasToolCalls =
+      message.role === "assistant" &&
+      message.tool_calls !== undefined &&
+      message.tool_calls.length > 0;
+
+    const content = isToolRole
+      ? (toStringContent(message.content) ?? "")
+      : hasToolCalls
+        ? toStringContent(message.content)
+        : translateContent(message.content);
+
     const base: KimiMessage = {
       role: message.role,
-      content: flattenContent(message.content),
+      content,
     };
     if (message.name) base.name = message.name;
     if (message.tool_call_id) base.tool_call_id = message.tool_call_id;
@@ -147,9 +190,6 @@ function translateMessages(messages: Message[]): KimiMessage[] {
           arguments: tc.function.arguments,
         },
       }));
-    }
-    if (message.role === "tool" && base.content === null) {
-      base.content = "";
     }
     return base;
   });
@@ -630,19 +670,13 @@ export class KimiProvider implements LLMProvider {
       body.response_format = params.responseFormat;
     }
 
-    // Thinking is model-specific:
-    //   kimi-k2.5            → supports both enabled/disabled (default: enabled)
-    //   kimi-k2-thinking     → always on; omit to avoid rejection
-    // Web search requires thinking disabled per Moonshot docs, so when web
-    // search is enabled we force-disable thinking on models that accept it.
-    if (params.model !== THINKING_MODEL_ID) {
-      if (params.webSearchEnabled) {
-        body.thinking = { type: "disabled" };
-      } else if (params.thinkingEnabled !== undefined) {
-        body.thinking = {
-          type: params.thinkingEnabled ? "enabled" : "disabled",
-        };
-      }
+    // Web search requires thinking disabled per Moonshot docs.
+    if (params.webSearchEnabled) {
+      body.thinking = { type: "disabled" };
+    } else if (params.thinkingEnabled !== undefined) {
+      body.thinking = {
+        type: params.thinkingEnabled ? "enabled" : "disabled",
+      };
     }
 
     if (stream) {
