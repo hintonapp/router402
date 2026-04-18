@@ -233,6 +233,23 @@ function allWebSearchCalls(calls: KimiToolCall[]): boolean {
   return calls.every((tc) => tc.function.name === WEB_SEARCH_TOOL_NAME);
 }
 
+/**
+ * Build the `content` for a tool response message echoing a $web_search call.
+ * Per Moonshot docs, we must JSON.parse the model's arguments, then JSON.stringify
+ * the result back — this is the pattern the official SDK examples use. Returning
+ * the raw argument string usually works, but round-tripping through parse+stringify
+ * matches the documented contract exactly and tolerates any whitespace/ordering
+ * differences Moonshot's validator might enforce.
+ */
+function toolResultContent(rawArguments: string): string {
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || "{}");
+    return JSON.stringify(parsed);
+  } catch {
+    return rawArguments || "{}";
+  }
+}
+
 // ============================================================================
 // Kimi Provider Implementation
 // ============================================================================
@@ -302,6 +319,11 @@ export class KimiProvider implements LLMProvider {
           allWebSearchCalls(toolCalls) &&
           params.webSearchEnabled
         ) {
+          kimiLogger.debug("Moonshot $web_search echo", {
+            round,
+            toolCallCount: toolCalls.length,
+            toolCallNames: toolCalls.map((c) => c.function.name),
+          });
           messages.push({
             role: "assistant",
             content: message.content ?? null,
@@ -312,7 +334,7 @@ export class KimiProvider implements LLMProvider {
               role: "tool",
               tool_call_id: call.id,
               name: call.function.name,
-              content: call.function.arguments,
+              content: toolResultContent(call.function.arguments),
             });
           }
           continue;
@@ -499,6 +521,11 @@ export class KimiProvider implements LLMProvider {
           allWebSearchCalls(collectedToolCalls);
 
         if (isSearchRound) {
+          kimiLogger.debug("Moonshot $web_search echo (stream)", {
+            round,
+            toolCallCount: collectedToolCalls.length,
+            toolCallNames: collectedToolCalls.map((c) => c.function.name),
+          });
           messages.push({
             role: "assistant",
             content: null,
@@ -509,7 +536,7 @@ export class KimiProvider implements LLMProvider {
               role: "tool",
               tool_call_id: call.id,
               name: call.function.name,
-              content: call.function.arguments,
+              content: toolResultContent(call.function.arguments),
             });
           }
           // bufferedToolCallChunks stays empty; we swallow the $web_search calls
@@ -571,7 +598,14 @@ export class KimiProvider implements LLMProvider {
     };
 
     if (params.temperature !== undefined) body.temperature = params.temperature;
-    if (params.maxTokens !== undefined) body.max_tokens = params.maxTokens;
+    // Web search pulls long pages into prompt_tokens and needs headroom for a
+    // grounded answer. Moonshot's own examples set max_tokens=32768 — match
+    // that when the caller didn't specify a ceiling.
+    if (params.maxTokens !== undefined) {
+      body.max_tokens = params.maxTokens;
+    } else if (params.webSearchEnabled) {
+      body.max_tokens = 32768;
+    }
     if (params.topP !== undefined) body.top_p = params.topP;
     if (params.stop && params.stop.length > 0) body.stop = params.stop;
 

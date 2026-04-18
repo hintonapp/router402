@@ -108,7 +108,7 @@ export const MODEL_REGISTRY = {
       name: "Kimi K2 Thinking",
       providerId: "kimi-k2-thinking",
       pricing: { input: 0.6, output: 2.5 },
-      features: ["web_search"],
+      features: [],
     },
   },
 } as const satisfies Record<string, Record<string, ModelDefinition>>;
