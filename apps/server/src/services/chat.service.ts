@@ -227,9 +227,17 @@ export class ChatService {
 
       response = await provider.chat(params);
 
-      // Accumulate usage
+      // Accumulate usage across agentic rounds
       totalUsage.promptTokens += response.usage.promptTokens;
       totalUsage.completionTokens += response.usage.completionTokens;
+      if (response.usage.reasoningTokens) {
+        totalUsage.reasoningTokens =
+          (totalUsage.reasoningTokens ?? 0) + response.usage.reasoningTokens;
+      }
+      if (response.usage.webSearchCount) {
+        totalUsage.webSearchCount =
+          (totalUsage.webSearchCount ?? 0) + response.usage.webSearchCount;
+      }
     }
 
     response.usage = totalUsage;
@@ -543,6 +551,16 @@ export class ChatService {
       completion_tokens: response.usage.completionTokens,
       total_tokens:
         response.usage.promptTokens + response.usage.completionTokens,
+      ...(response.usage.reasoningTokens
+        ? {
+            completion_tokens_details: {
+              reasoning_tokens: response.usage.reasoningTokens,
+            },
+          }
+        : {}),
+      ...(response.usage.webSearchCount
+        ? { web_search_count: response.usage.webSearchCount }
+        : {}),
     };
 
     return {
@@ -637,6 +655,16 @@ export class ChatService {
         prompt_tokens: chunk.usage.promptTokens,
         completion_tokens: chunk.usage.completionTokens,
         total_tokens: chunk.usage.promptTokens + chunk.usage.completionTokens,
+        ...(chunk.usage.reasoningTokens
+          ? {
+              completion_tokens_details: {
+                reasoning_tokens: chunk.usage.reasoningTokens,
+              },
+            }
+          : {}),
+        ...(chunk.usage.webSearchCount
+          ? { web_search_count: chunk.usage.webSearchCount }
+          : {}),
       };
     }
 

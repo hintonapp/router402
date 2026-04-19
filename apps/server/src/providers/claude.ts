@@ -599,6 +599,9 @@ export class ClaudeProvider implements LLMProvider {
           ? fromClaudeToolCalls(toolUseBlocks)
           : undefined;
 
+      const webSearchCount =
+        response.usage.server_tool_use?.web_search_requests ?? 0;
+
       return {
         content: textContent,
         reasoning: thinkingActive
@@ -609,6 +612,7 @@ export class ClaudeProvider implements LLMProvider {
         usage: {
           promptTokens: response.usage.input_tokens,
           completionTokens: response.usage.output_tokens,
+          webSearchCount: webSearchCount > 0 ? webSearchCount : undefined,
         },
         // Preserve raw content blocks for multi-turn thinking (signatures)
         rawAssistantParts: thinkingActive ? response.content : undefined,
@@ -712,6 +716,7 @@ export class ClaudeProvider implements LLMProvider {
 
       let inputTokens = 0;
       let outputTokens = 0;
+      let webSearchCount = 0;
 
       for await (const event of stream) {
         const chunk = this.processStreamEvent(
@@ -732,9 +737,20 @@ export class ClaudeProvider implements LLMProvider {
           (event as { message?: { usage?: { input_tokens: number } } }).message
             ?.usage
         ) {
-          inputTokens = (
-            event as { message: { usage: { input_tokens: number } } }
-          ).message.usage.input_tokens;
+          const msg = (
+            event as {
+              message: {
+                usage: {
+                  input_tokens: number;
+                  server_tool_use?: { web_search_requests?: number } | null;
+                };
+              };
+            }
+          ).message;
+          inputTokens = msg.usage.input_tokens;
+          if (msg.usage.server_tool_use?.web_search_requests) {
+            webSearchCount = msg.usage.server_tool_use.web_search_requests;
+          }
         }
 
         // Track usage from message_delta event
@@ -742,8 +758,18 @@ export class ClaudeProvider implements LLMProvider {
           event.type === "message_delta" &&
           (event as { usage?: { output_tokens: number } }).usage
         ) {
-          outputTokens = (event as { usage: { output_tokens: number } }).usage
-            .output_tokens;
+          const deltaUsage = (
+            event as {
+              usage: {
+                output_tokens: number;
+                server_tool_use?: { web_search_requests?: number } | null;
+              };
+            }
+          ).usage;
+          outputTokens = deltaUsage.output_tokens;
+          if (deltaUsage.server_tool_use?.web_search_requests !== undefined) {
+            webSearchCount = deltaUsage.server_tool_use.web_search_requests;
+          }
         }
 
         if (chunk) {
@@ -757,6 +783,7 @@ export class ClaudeProvider implements LLMProvider {
             usage: {
               promptTokens: inputTokens,
               completionTokens: outputTokens,
+              webSearchCount: webSearchCount > 0 ? webSearchCount : undefined,
             },
             rawAssistantParts:
               thinkingActive && accumulatedBlocks.length > 0

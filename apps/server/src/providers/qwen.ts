@@ -311,7 +311,7 @@ export class QwenProvider implements LLMProvider {
       }
 
       const data = (await response.json()) as QwenChatResponse;
-      return this.formatResponse(data);
+      return this.formatResponse(data, params.webSearchEnabled === true);
     } catch (error) {
       throw translateThrown(error);
     }
@@ -462,6 +462,7 @@ export class QwenProvider implements LLMProvider {
         usage: {
           promptTokens: finalUsage?.prompt_tokens ?? 0,
           completionTokens: finalUsage?.completion_tokens ?? 0,
+          webSearchCount: params.webSearchEnabled === true ? 1 : undefined,
         },
       };
     } catch (error) {
@@ -535,7 +536,10 @@ export class QwenProvider implements LLMProvider {
     return body;
   }
 
-  private formatResponse(data: QwenChatResponse): ChatResponse {
+  private formatResponse(
+    data: QwenChatResponse,
+    webSearchEnabled: boolean
+  ): ChatResponse {
     const choice = data.choices?.[0];
     if (!choice) {
       throw new ProviderError(
@@ -568,6 +572,9 @@ export class QwenProvider implements LLMProvider {
       usage: {
         promptTokens: data.usage?.prompt_tokens ?? 0,
         completionTokens: data.usage?.completion_tokens ?? 0,
+        // DashScope does not report a precise search count; count one
+        // invocation per request that enabled the "agent" search strategy.
+        webSearchCount: webSearchEnabled ? 1 : undefined,
       },
     };
   }

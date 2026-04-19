@@ -90,8 +90,22 @@ export interface ChatResponse {
   usage: {
     /** Number of tokens in the prompt */
     promptTokens: number;
-    /** Number of tokens in the completion */
+    /**
+     * Number of tokens in the completion. For providers that bill reasoning
+     * at the output rate (e.g. OpenAI Responses API), this total already
+     * includes reasoning/thinking tokens.
+     */
     completionTokens: number;
+    /**
+     * Reasoning/thinking tokens subset of completionTokens. Surfaced for
+     * transparency/logging — already counted once in completionTokens.
+     */
+    reasoningTokens?: number;
+    /**
+     * Number of built-in web_search tool invocations the provider performed
+     * during this request. Used to apply a per-search fee on top of token cost.
+     */
+    webSearchCount?: number;
   };
 
   /**
@@ -127,8 +141,12 @@ export interface ChatChunk {
   usage?: {
     /** Number of tokens in the prompt */
     promptTokens: number;
-    /** Number of tokens in the completion */
+    /** Number of tokens in the completion (includes reasoning tokens) */
     completionTokens: number;
+    /** Reasoning/thinking subset of completionTokens (for logging) */
+    reasoningTokens?: number;
+    /** Number of built-in web_search invocations in this request */
+    webSearchCount?: number;
   };
 
   /**

@@ -237,6 +237,19 @@ export interface Usage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  /**
+   * Detail on the completion tokens. `reasoning_tokens` is a subset of
+   * `completion_tokens` and is billed at the output rate — it is already
+   * included in `completion_tokens` and must NOT be re-added.
+   */
+  completion_tokens_details?: {
+    reasoning_tokens?: number;
+  };
+  /**
+   * Number of built-in web_search tool invocations performed by the provider
+   * during this request. Drives the per-search surcharge.
+   */
+  web_search_count?: number;
 }
 
 // ============================================================================

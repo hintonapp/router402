@@ -313,6 +313,7 @@ export class KimiProvider implements LLMProvider {
       const messages = translateMessages(params.messages);
       let promptTokens = 0;
       let completionTokens = 0;
+      let webSearchCount = 0;
 
       for (let round = 0; round < MAX_WEB_SEARCH_ROUNDS; round++) {
         const body = this.buildRequestBody(params, messages, false);
@@ -359,6 +360,7 @@ export class KimiProvider implements LLMProvider {
           allWebSearchCalls(toolCalls) &&
           params.webSearchEnabled
         ) {
+          webSearchCount += toolCalls.length;
           kimiLogger.debug("Moonshot $web_search echo", {
             round,
             toolCallCount: toolCalls.length,
@@ -402,6 +404,7 @@ export class KimiProvider implements LLMProvider {
           usage: {
             promptTokens,
             completionTokens,
+            webSearchCount: webSearchCount > 0 ? webSearchCount : undefined,
           },
         };
       }
@@ -421,6 +424,7 @@ export class KimiProvider implements LLMProvider {
       const messages = translateMessages(params.messages);
       let promptTokensTotal = 0;
       let completionTokensTotal = 0;
+      let webSearchCountTotal = 0;
       let finalFinishReason: FinishReason = "stop";
 
       for (let round = 0; round < MAX_WEB_SEARCH_ROUNDS; round++) {
@@ -561,6 +565,7 @@ export class KimiProvider implements LLMProvider {
           allWebSearchCalls(collectedToolCalls);
 
         if (isSearchRound) {
+          webSearchCountTotal += collectedToolCalls.length;
           kimiLogger.debug("Moonshot $web_search echo (stream)", {
             round,
             toolCallCount: collectedToolCalls.length,
@@ -605,6 +610,8 @@ export class KimiProvider implements LLMProvider {
         usage: {
           promptTokens: promptTokensTotal,
           completionTokens: completionTokensTotal,
+          webSearchCount:
+            webSearchCountTotal > 0 ? webSearchCountTotal : undefined,
         },
       };
     } catch (error) {

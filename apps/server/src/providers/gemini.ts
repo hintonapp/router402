@@ -673,6 +673,20 @@ export class GeminiProvider implements LLMProvider {
       // Get usage metadata
       const usageMetadata = response.usageMetadata;
 
+      // Google grounding exposes the list of search queries the model issued.
+      // When web search was enabled but metadata is missing, fall back to 1
+      // so the per-search fee is never silently dropped.
+      const grounding = (
+        candidate as unknown as {
+          groundingMetadata?: { webSearchQueries?: string[] };
+        }
+      ).groundingMetadata;
+      const webSearchCount = grounding?.webSearchQueries?.length
+        ? grounding.webSearchQueries.length
+        : params.webSearchEnabled
+          ? 1
+          : 0;
+
       return {
         content: textContent,
         reasoning: params.thinkingEnabled
@@ -684,6 +698,7 @@ export class GeminiProvider implements LLMProvider {
         usage: {
           promptTokens: usageMetadata?.promptTokenCount || 0,
           completionTokens: usageMetadata?.candidatesTokenCount || 0,
+          webSearchCount: webSearchCount > 0 ? webSearchCount : undefined,
         },
         // Preserve raw parts for multi-turn tool calling (thoughtSignature)
         rawAssistantParts: candidate.content?.parts,
@@ -790,6 +805,7 @@ export class GeminiProvider implements LLMProvider {
 
       let promptTokens = 0;
       let completionTokens = 0;
+      let webSearchCount = 0;
       let lastFinishReason: ChatResponse["finishReason"] | undefined;
       let hasYieldedToolCalls = false;
       const allParts: Part[] = [];
@@ -803,6 +819,19 @@ export class GeminiProvider implements LLMProvider {
 
           // Accumulate all parts for rawAssistantParts (thoughtSignature preservation)
           allParts.push(...parts);
+
+          // Grounding metadata arrives on the candidate when web search fires.
+          const grounding = (
+            candidate as unknown as {
+              groundingMetadata?: { webSearchQueries?: string[] };
+            }
+          ).groundingMetadata;
+          if (grounding?.webSearchQueries?.length) {
+            webSearchCount = Math.max(
+              webSearchCount,
+              grounding.webSearchQueries.length
+            );
+          }
 
           // Extract thinking/reasoning content when enabled
           if (params.thinkingEnabled) {
@@ -841,6 +870,11 @@ export class GeminiProvider implements LLMProvider {
         }
       }
 
+      // Fallback: if web search was requested but grounding metadata was
+      // absent, charge at least one invocation so the fee is never dropped.
+      const effectiveWebSearchCount =
+        webSearchCount === 0 && params.webSearchEnabled ? 1 : webSearchCount;
+
       // Yield final chunk with finish reason, usage, and raw parts for agentic loop
       yield {
         finishReason: hasYieldedToolCalls
@@ -849,6 +883,8 @@ export class GeminiProvider implements LLMProvider {
         usage: {
           promptTokens,
           completionTokens,
+          webSearchCount:
+            effectiveWebSearchCount > 0 ? effectiveWebSearchCount : undefined,
         },
         rawAssistantParts: allParts.length > 0 ? allParts : undefined,
       };

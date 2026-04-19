@@ -135,16 +135,21 @@ export function createChatRouter(): Router {
             isSupportedModel(request.model)
           ) {
             const model = request.model;
+            const webSearchCount = response.usage.web_search_count ?? 0;
             const cost = calculateCost(
               model,
               response.usage.prompt_tokens,
-              response.usage.completion_tokens
+              response.usage.completion_tokens,
+              webSearchCount
             );
             chatLogger.info("Recording usage", {
               wallet: walletAddress.slice(0, 10),
               model,
               promptTokens: response.usage.prompt_tokens,
               completionTokens: response.usage.completion_tokens,
+              reasoningTokens:
+                response.usage.completion_tokens_details?.reasoning_tokens,
+              webSearchCount,
               totalCost: cost.totalCost.toNumber(),
             });
             await recordUsage(
@@ -223,7 +228,11 @@ async function handleStreamingResponse(
 
   try {
     let finalUsage:
-      | { prompt_tokens: number; completion_tokens: number }
+      | {
+          prompt_tokens: number;
+          completion_tokens: number;
+          web_search_count?: number;
+        }
       | undefined;
 
     // Stream chunks from the chat service (Requirements 6.2, 6.3)
@@ -256,10 +265,12 @@ async function handleStreamingResponse(
       isSupportedModel(request.model)
     ) {
       const model = request.model;
+      const webSearchCount = finalUsage.web_search_count ?? 0;
       const cost = calculateCost(
         model,
         finalUsage.prompt_tokens,
-        finalUsage.completion_tokens
+        finalUsage.completion_tokens,
+        webSearchCount
       );
       await recordUsage(
         walletAddress,

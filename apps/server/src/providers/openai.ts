@@ -126,6 +126,13 @@ interface ResponsesUsage {
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
+  /**
+   * reasoning_tokens is INCLUDED in output_tokens per OpenAI billing.
+   * Exposed here only so we can report it separately for transparency.
+   */
+  output_tokens_details?: {
+    reasoning_tokens?: number;
+  };
 }
 
 interface ResponsesBody {
@@ -343,6 +350,14 @@ function extractReasoning(output: ResponsesOutputItem[]): string | null {
   return chunks.join("\n");
 }
 
+function countWebSearchCalls(output: ResponsesOutputItem[]): number {
+  let count = 0;
+  for (const item of output) {
+    if (item.type === "web_search_call") count += 1;
+  }
+  return count;
+}
+
 function extractToolCalls(output: ResponsesOutputItem[]): ToolCall[] {
   const calls: ToolCall[] = [];
   for (const item of output) {
@@ -479,6 +494,9 @@ export class OpenAIProvider implements LLMProvider {
       const toolCalls = extractToolCalls(output);
       const content = extractAssistantText(output);
       const reasoning = extractReasoning(output);
+      const webSearchCount = countWebSearchCalls(output);
+      const reasoningTokens =
+        data.usage?.output_tokens_details?.reasoning_tokens ?? 0;
 
       return {
         content,
@@ -492,6 +510,8 @@ export class OpenAIProvider implements LLMProvider {
         usage: {
           promptTokens: data.usage?.input_tokens ?? 0,
           completionTokens: data.usage?.output_tokens ?? 0,
+          reasoningTokens: reasoningTokens > 0 ? reasoningTokens : undefined,
+          webSearchCount: webSearchCount > 0 ? webSearchCount : undefined,
         },
       };
     } catch (error) {
@@ -539,6 +559,8 @@ export class OpenAIProvider implements LLMProvider {
       >();
       let promptTokens = 0;
       let completionTokens = 0;
+      let reasoningTokens = 0;
+      let webSearchCount = 0;
       let finishReason: FinishReason | undefined;
       let sawToolCalls = false;
       let eventCount = 0;
@@ -587,6 +609,8 @@ export class OpenAIProvider implements LLMProvider {
               name: item.name ?? "",
               arguments: "",
             });
+          } else if (item?.type === "web_search_call") {
+            webSearchCount += 1;
           }
           continue;
         }
@@ -651,6 +675,8 @@ export class OpenAIProvider implements LLMProvider {
             | undefined;
           promptTokens += resp?.usage?.input_tokens ?? 0;
           completionTokens += resp?.usage?.output_tokens ?? 0;
+          reasoningTokens +=
+            resp?.usage?.output_tokens_details?.reasoning_tokens ?? 0;
           finishReason = mapFinishReason(
             resp?.status,
             resp?.incomplete_details?.reason ?? undefined,
@@ -678,11 +704,18 @@ export class OpenAIProvider implements LLMProvider {
         finishReason,
         promptTokens,
         completionTokens,
+        reasoningTokens,
+        webSearchCount,
       });
 
       yield {
         finishReason: finishReason ?? "stop",
-        usage: { promptTokens, completionTokens },
+        usage: {
+          promptTokens,
+          completionTokens,
+          reasoningTokens: reasoningTokens > 0 ? reasoningTokens : undefined,
+          webSearchCount: webSearchCount > 0 ? webSearchCount : undefined,
+        },
       };
     } catch (error) {
       throw translateThrown(error);
