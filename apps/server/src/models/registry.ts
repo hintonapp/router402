@@ -63,6 +63,26 @@ export const MODEL_REGISTRY = {
       features: ["thinking", "web_search", "image_input"],
     },
   },
+  openai: {
+    "openai/gpt-5.4": {
+      name: "GPT-5.4",
+      providerId: "gpt-5.4",
+      pricing: { input: 2.5, output: 15.0 },
+      features: ["thinking", "web_search", "image_input"],
+    },
+    "openai/gpt-5.4-mini": {
+      name: "GPT-5.4 Mini",
+      providerId: "gpt-5.4-mini",
+      pricing: { input: 0.75, output: 4.5 },
+      features: ["thinking", "web_search", "image_input"],
+    },
+    "openai/gpt-5.4-nano": {
+      name: "GPT-5.4 Nano",
+      providerId: "gpt-5.4-nano",
+      pricing: { input: 0.2, output: 1.25 },
+      features: ["thinking", "web_search", "image_input"],
+    },
+  },
   google: {
     "google/gemini-3.1-pro-preview": {
       name: "Gemini 3.1 Pro",
@@ -126,11 +146,14 @@ type QwenModelId =
   (typeof MODEL_REGISTRY)["qwen"][keyof (typeof MODEL_REGISTRY)["qwen"]]["providerId"];
 type KimiModelId =
   (typeof MODEL_REGISTRY)["kimi"][keyof (typeof MODEL_REGISTRY)["kimi"]]["providerId"];
+type OpenAIModelId =
+  (typeof MODEL_REGISTRY)["openai"][keyof (typeof MODEL_REGISTRY)["openai"]]["providerId"];
 export type ProviderModelId =
   | AnthropicModelId
   | GoogleModelId
   | QwenModelId
-  | KimiModelId;
+  | KimiModelId
+  | OpenAIModelId;
 
 // ============================================================================
 // Derived Flat Maps (for fast lookups)

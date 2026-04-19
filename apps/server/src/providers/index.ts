@@ -25,6 +25,7 @@ import { UnsupportedModelError } from "./base.js";
 import { ClaudeProvider } from "./claude.js";
 import { GeminiProvider } from "./gemini.js";
 import { KimiProvider } from "./kimi.js";
+import { OpenAIProvider } from "./openai.js";
 import { QwenProvider } from "./qwen.js";
 
 // ============================================================================
@@ -172,6 +173,10 @@ export function getProvider(model: string): ProviderResult {
     return { provider: new KimiProvider(), modelId };
   }
 
+  if (providerName === "openai") {
+    return { provider: new OpenAIProvider(), modelId };
+  }
+
   throw new UnknownProviderError(model);
 }
 
@@ -194,6 +199,6 @@ export function getProviderModelId(model: string): string | undefined {
  */
 export function getProviderName(
   model: string
-): "anthropic" | "google" | "qwen" | "kimi" | undefined {
+): "anthropic" | "google" | "qwen" | "kimi" | "openai" | undefined {
   return registryGetProviderName(model);
 }

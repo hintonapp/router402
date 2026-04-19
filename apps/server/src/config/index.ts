@@ -31,6 +31,8 @@ export function loadConfig(): Config {
       DASHSCOPE_BASE_URL: process.env.DASHSCOPE_BASE_URL,
       MOONSHOT_API_KEY: process.env.MOONSHOT_API_KEY,
       MOONSHOT_BASE_URL: process.env.MOONSHOT_BASE_URL,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
     });
 
     configLogger.info("Configuration loaded successfully");
