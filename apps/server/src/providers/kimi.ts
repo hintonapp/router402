@@ -119,7 +119,7 @@ interface KimiStreamChunk {
 /**
  * Translate OpenRouter content into Kimi's expected content shape.
  *
- * Kimi K2.5 is natively multimodal (text + image_url). We preserve content
+ * Kimi K2.6 is natively multimodal (text + image_url). We preserve content
  * parts when images are present; when only text parts exist we flatten to a
  * single string. Non-standard part types are dropped.
  */

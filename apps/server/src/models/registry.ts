@@ -118,10 +118,10 @@ export const MODEL_REGISTRY = {
     },
   },
   kimi: {
-    "moonshotai/kimi-k2.5": {
-      name: "Kimi K2.5",
-      providerId: "kimi-k2.5",
-      pricing: { input: 0.6, output: 3.0 },
+    "moonshotai/kimi-k2.6": {
+      name: "Kimi K2.6",
+      providerId: "kimi-k2.6",
+      pricing: { input: 0.95, output: 4.0 },
       features: ["thinking", "web_search", "image_input"],
     },
   },
