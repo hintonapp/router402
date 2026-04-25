@@ -125,7 +125,7 @@ export const configSchema = z.object({
   MOONSHOT_BASE_URL: z.url().default("https://api.moonshot.ai/v1"),
 
   /**
-   * OpenAI API key (for GPT-5.4 family)
+   * OpenAI API key (for GPT-5.x family)
    */
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
 

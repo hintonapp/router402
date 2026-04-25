@@ -1,15 +1,15 @@
 /**
  * OpenAI Provider Adapter
  *
- * Implements the LLMProvider interface for OpenAI's GPT-5.4 family via the
+ * Implements the LLMProvider interface for OpenAI's GPT-5.x family via the
  * Responses API (`/v1/responses`). Uses native fetch: POST JSON for
  * non-streaming, parse named SSE events for streaming.
  *
  * The Responses API is used (not Chat Completions) because:
- *   - gpt-5.4-pro exposes full multi-turn / web_search only here.
+ *   - The flagship exposes full multi-turn / web_search only here.
  *   - Chat Completions web_search requires a separate `*-search-api` model
  *     and is incompatible with function tools.
- *   - Single unified shape for all four GPT-5.4 models.
+ *   - Single unified shape across the GPT-5.x family.
  *
  * Translation summary (OpenRouter → Responses API):
  *   - system/user/assistant messages → `{type: "message", role, content}`

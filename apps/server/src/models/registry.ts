@@ -64,10 +64,10 @@ export const MODEL_REGISTRY = {
     },
   },
   openai: {
-    "openai/gpt-5.4": {
-      name: "GPT-5.4",
-      providerId: "gpt-5.4",
-      pricing: { input: 2.5, output: 15.0 },
+    "openai/gpt-5.5": {
+      name: "GPT-5.5",
+      providerId: "gpt-5.5",
+      pricing: { input: 5.0, output: 30.0 },
       features: ["thinking", "web_search", "image_input"],
     },
     "openai/gpt-5.4-mini": {
